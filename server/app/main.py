@@ -15,6 +15,22 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="AgentDiary API", version="0.1.0", lifespan=lifespan)
 
+
+# TODO 临时诊断:把所有请求记到 access-debug.log,排查真机行为;定位后删除
+@app.middleware("http")
+async def _debug_access(request, call_next):
+    from datetime import datetime, timezone
+    from pathlib import Path
+
+    response = await call_next(request)
+    log = Path(__file__).resolve().parent.parent / "access-debug.log"
+    with log.open("a", encoding="utf-8") as f:
+        f.write(
+            f"{datetime.now(timezone.utc).isoformat()} "
+            f"{request.client.host} {request.method} {request.url.path} -> {response.status_code}\n"
+        )
+    return response
+
 # 开发期放开跨域;上线前收紧
 app.add_middleware(
     CORSMiddleware,

@@ -27,6 +27,15 @@ class DiaryEntry(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=_now)
 
 
+class ChatMessage(SQLModel, table=True):
+    """化身自对话记录。持久化在后端,App 重开后可恢复;上下文也由后端组装。"""
+
+    id: str = Field(default_factory=_new_id, primary_key=True)
+    role: str  # "user" | "avatar"
+    content: str
+    created_at: datetime = Field(default_factory=_now)
+
+
 class DialoguePair(SQLModel, table=True):
     """蒸馏产物:情境 → 用户口吻回应,用于表层风格微调(LoRA)。"""
 

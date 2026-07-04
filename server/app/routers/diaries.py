@@ -37,6 +37,25 @@ def create_diary(
     return diary
 
 
+@router.post("/{diary_id}/distill")
+def redistill(
+    diary_id: str,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session),
+) -> dict:
+    """手动重跑一篇日记的蒸馏(先清掉旧衍生数据,避免重复)。"""
+    diary = session.get(DiaryEntry, diary_id)
+    if diary is None:
+        raise HTTPException(status_code=404, detail="日记不存在")
+    for pair in session.exec(select(DialoguePair).where(DialoguePair.source_diary_id == diary_id)):
+        session.delete(pair)
+    for card in session.exec(select(PersonaCard).where(PersonaCard.source_diary_id == diary_id)):
+        session.delete(card)
+    session.commit()
+    background_tasks.add_task(run_pipeline_for_diary, diary_id)
+    return {"status": "queued", "diary_id": diary_id}
+
+
 @router.delete("/{diary_id}")
 def delete_diary(diary_id: str, session: Session = Depends(get_session)) -> dict:
     diary = session.get(DiaryEntry, diary_id)

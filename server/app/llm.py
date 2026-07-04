@@ -17,7 +17,7 @@ class LLMError(RuntimeError):
     pass
 
 
-def chat(system: str, prompt: str, *, json_mode: bool = False, timeout: float = 180.0) -> str:
+def chat(system: str, prompt: str, *, json_mode: bool = False, timeout: float = 300.0) -> str:
     """单轮调用:一条 user 消息。"""
     return chat_messages(
         system, [{"role": "user", "content": prompt}], json_mode=json_mode, timeout=timeout
@@ -29,7 +29,7 @@ def chat_messages(
     messages: list[dict],
     *,
     json_mode: bool = False,
-    timeout: float = 180.0,
+    timeout: float = 300.0,
 ) -> str:
     """多轮调用:messages 为 [{role: user|assistant, content: str}] 的对话历史。"""
     payload: dict = {
@@ -62,7 +62,23 @@ def chat_messages(
 
 def chat_json(system: str, prompt: str) -> dict:
     text = chat(system, prompt, json_mode=True)
+    return _parse_json_loose(text)
+
+
+def _parse_json_loose(text: str) -> dict:
+    """宽松解析:即使开了 format=json,模型偶尔仍会包 ```json 围栏或夹杂说明文字。"""
+    text = text.strip()
+    fenced = re.search(r"```(?:json)?\s*(.*?)```", text, flags=re.S)
+    if fenced:
+        text = fenced.group(1).strip()
     try:
         return json.loads(text)
-    except json.JSONDecodeError as e:
-        raise LLMError(f"模型未返回合法 JSON: {text[:200]}") from e
+    except json.JSONDecodeError:
+        pass
+    embedded = re.search(r"\{.*\}", text, flags=re.S)
+    if embedded:
+        try:
+            return json.loads(embedded.group(0))
+        except json.JSONDecodeError:
+            pass
+    raise LLMError(f"模型未返回合法 JSON: {text[:200]}")
