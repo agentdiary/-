@@ -66,11 +66,23 @@ export const api = {
 
   listDiaries: () => request<DiaryEntry[]>('/diaries'),
 
-  createDiary: (content: string) =>
+  createDiary: (content: string, visibility = 'public', allowedUserIds: string[] = []) =>
     request<DiaryEntry>('/diaries', {
       method: 'POST',
-      body: JSON.stringify({ content }),
+      body: JSON.stringify({
+        content,
+        visibility,
+        allowed_user_ids: allowedUserIds,
+      }),
     }),
+
+  setStatus: (status: string | null) =>
+    request<{ status: string | null }>('/users/me/status', {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    }),
+
+  getMyStatus: () => request<{ status: string | null }>('/users/me/status'),
 
   // 删除日记会在后端级联删除衍生的对话对与人格卡片(隐私红线)
   deleteDiary: (id: string) =>

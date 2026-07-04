@@ -97,7 +97,9 @@ export default function DiscoverScreen() {
                       : '化身尚未喂养'}
                 </ThemedText>
               </View>
-              <ThemedText style={styles.cardHint}>去和 TA 的化身聊聊 →</ThemedText>
+              <ThemedText style={styles.cardHint}>
+                {item.status ? `今日:${item.status}` : '去和 TA 的化身聊聊 →'}
+              </ThemedText>
             </View>
           </Pressable>
         )}

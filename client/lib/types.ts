@@ -1,8 +1,11 @@
 // 与后端 server/app 各路由的传输类型保持一致
 
+export type DiaryVisibility = 'public' | 'restricted' | 'private';
+
 export interface DiaryEntry {
   id: string;
   content: string;
+  visibility: DiaryVisibility;
   created_at: string; // ISO 8601
   updated_at: string;
 }
@@ -18,6 +21,7 @@ export interface UserSummary {
   username: string;
   card_count: number;
   is_builtin: boolean;
+  status: string | null;
 }
 
 export interface ChatHistoryItem {

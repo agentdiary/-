@@ -11,13 +11,14 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlmodel import Session, select
+from sqlmodel import Session, and_, or_, select
 
 from .. import llm
 from ..auth import get_current_user
 from ..celebrities import CELEBRITY_PERSONAS
 from ..db import get_session
-from ..models import ChatMessage, DialoguePair, PersonaCard, User
+from ..models import ChatMessage, DialoguePair, DiaryAllowedUser, DiaryEntry, PersonaCard, User
+from .users import current_status
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -45,7 +46,7 @@ _VISITOR_SYSTEM_TMPL = """你是用户「{owner}」的数字化身,正在替他�
 
 以下人格卡片蒸馏自「{owner}」的日记,代表他的观点、价值观与偏好:
 {cards}
-
+{status_line}
 要求:
 - 以「{owner}」本人的第一人称口吻自然聊天,可以聊他的观点、偏好、近况标签
 - 隐私红线:绝不复述日记原文,不透露具体人名、地点、可识别的私人事件细节;被追问日记内容时礼貌带过
@@ -88,14 +89,29 @@ def _resolve_owner(target_user_id: str | None, me: User, session: Session) -> Us
     return owner
 
 
-def _retrieve_cards(session: Session, owner_id: str) -> list[PersonaCard]:
+def _retrieve_cards(session: Session, owner: User, visitor: User) -> list[PersonaCard]:
     stmt = (
         select(PersonaCard)
-        .where(PersonaCard.user_id == owner_id)
+        .where(PersonaCard.user_id == owner.id)
         .where(PersonaCard.superseded_by == None)  # noqa: E711
-        .order_by(PersonaCard.created_at.desc())  # type: ignore[attr-defined]
-        .limit(MAX_CARDS)
     )
+    if visitor.id != owner.id:
+        # 隐私红线:访客只能用到 public 日记、或 restricted 且对其开放的日记衍生的卡片
+        allowed_restricted = select(DiaryAllowedUser.diary_id).where(
+            DiaryAllowedUser.user_id == visitor.id
+        )
+        stmt = stmt.join(
+            DiaryEntry, DiaryEntry.id == PersonaCard.source_diary_id  # type: ignore[arg-type]
+        ).where(
+            or_(
+                DiaryEntry.visibility == "public",
+                and_(
+                    DiaryEntry.visibility == "restricted",
+                    PersonaCard.source_diary_id.in_(allowed_restricted),  # type: ignore[attr-defined]
+                ),
+            )
+        )
+    stmt = stmt.order_by(PersonaCard.created_at.desc()).limit(MAX_CARDS)  # type: ignore[attr-defined]
     return list(session.exec(stmt))
 
 
@@ -143,9 +159,11 @@ def _build_system(owner: User, me: User, cards: list[PersonaCard], session: Sess
         return _SELF_SYSTEM_TMPL.format(
             owner=owner.username, cards=cards_text, examples=examples_text
         )
-    # 访客模式:不注入日记原话(隐私边界)
+    # 访客模式:不注入日记原话(隐私边界);带上主人今天的状态,给「当下」的实在感
+    status = current_status(owner)
+    status_line = f"\n他今天的状态:「{status}」——对话中可以自然地体现这个当下状态。\n" if status else ""
     return _VISITOR_SYSTEM_TMPL.format(
-        owner=owner.username, visitor=me.username, cards=cards_text
+        owner=owner.username, visitor=me.username, cards=cards_text, status_line=status_line
     )
 
 
@@ -170,7 +188,7 @@ def chat(
     session: Session = Depends(get_session),
 ) -> AvatarReply:
     owner = _resolve_owner(body.target_user_id, me, session)
-    cards = _retrieve_cards(session, owner.id)
+    cards = _retrieve_cards(session, owner, me)
     system = _build_system(owner, me, cards, session)
 
     messages = [

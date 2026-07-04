@@ -5,13 +5,18 @@ from sqlmodel import Session, select
 from ..auth import get_current_user
 from ..db import get_session
 from ..distill.pipeline import run_pipeline_for_diary
-from ..models import DialoguePair, DiaryEntry, PersonaCard, User
+from ..models import DialoguePair, DiaryAllowedUser, DiaryEntry, PersonaCard, User
 
 router = APIRouter(prefix="/diaries", tags=["diaries"])
+
+VISIBILITIES = {"public", "restricted", "private"}
 
 
 class DiaryCreate(BaseModel):
     content: str
+    # public=化身可对所有人透露 / restricted=仅指定用户 / private=仅自己
+    visibility: str = "public"
+    allowed_user_ids: list[str] = []
 
 
 @router.get("")
@@ -36,10 +41,16 @@ def create_diary(
     content = body.content.strip()
     if not content:
         raise HTTPException(status_code=422, detail="日记内容不能为空")
-    diary = DiaryEntry(user_id=me.id, content=content)
+    if body.visibility not in VISIBILITIES:
+        raise HTTPException(status_code=422, detail="可见性取值不合法")
+    diary = DiaryEntry(user_id=me.id, content=content, visibility=body.visibility)
     session.add(diary)
     session.commit()
     session.refresh(diary)
+    if body.visibility == "restricted":
+        for uid in set(body.allowed_user_ids):
+            session.add(DiaryAllowedUser(diary_id=diary.id, user_id=uid))
+        session.commit()
     # 蒸馏在后台异步执行,不阻塞保存;本地推理一篇约需十几秒到一分钟
     background_tasks.add_task(run_pipeline_for_diary, diary.id)
     return diary
@@ -83,6 +94,10 @@ def delete_diary(
         session.delete(pair)
     for card in session.exec(select(PersonaCard).where(PersonaCard.source_diary_id == diary.id)):
         session.delete(card)
+    for allow in session.exec(
+        select(DiaryAllowedUser).where(DiaryAllowedUser.diary_id == diary.id)
+    ):
+        session.delete(allow)
     session.delete(diary)
     session.commit()
     return {"deleted": diary.id}

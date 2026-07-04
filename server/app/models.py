@@ -26,6 +26,9 @@ class User(SQLModel, table=True):
     password_hash: str
     # 内置名人化身:由人物设定 prompt 驱动而非日记蒸馏,不可登录
     is_builtin: bool = Field(default=False)
+    # 化身状态(微信状态式):24 小时后自动过期,给化身「今天」的实在感
+    status_text: str | None = Field(default=None)
+    status_updated_at: datetime | None = Field(default=None)
     created_at: datetime = Field(default_factory=_now)
 
 
@@ -39,8 +42,19 @@ class DiaryEntry(SQLModel, table=True):
     id: str = Field(default_factory=_new_id, primary_key=True)
     user_id: str = Field(index=True)
     content: str
+    # 可见性分级:public=化身可对所有访客使用其衍生卡片;
+    # restricted=仅 DiaryAllowedUser 中指定的访客;private=仅自己(自聊)
+    visibility: str = Field(default="public")
     created_at: datetime = Field(default_factory=_now)
     updated_at: datetime = Field(default_factory=_now)
+
+
+class DiaryAllowedUser(SQLModel, table=True):
+    """restricted 日记的访客白名单。"""
+
+    id: str = Field(default_factory=_new_id, primary_key=True)
+    diary_id: str = Field(foreign_key="diaryentry.id", index=True)
+    user_id: str = Field(index=True)
 
 
 class ChatMessage(SQLModel, table=True):

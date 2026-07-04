@@ -40,6 +40,10 @@ export default function RootLayout() {
           name="appearance"
           options={{ presentation: 'modal', title: '外观' }}
         />
+        <Stack.Screen
+          name="status-editor"
+          options={{ presentation: 'modal', title: '今日状态' }}
+        />
         <Stack.Screen name="visit/[userId]" options={{ title: '' }} />
       </Stack>
       <StatusBar style="auto" />
