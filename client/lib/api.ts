@@ -1,23 +1,69 @@
 // 后端 API 客户端。客户端不做任何模型逻辑,不直接调用 LLM(密钥安全红线)。
-// 真机(iPad Expo Go)访问时必须用电脑的局域网 IP,通过 .env 配置:
-//   EXPO_PUBLIC_API_URL=http://192.168.x.x:8000
+// 本机开发时 EXPO_PUBLIC_API_URL 用电脑局域网 IP;发布版走 ngrok 公网域名。
 
-import type { AvatarReply, ChatHistoryItem, DiaryEntry } from './types';
+import type {
+  AuthResponse,
+  AvatarReply,
+  ChatHistoryItem,
+  DiaryEntry,
+  UserSummary,
+} from './types';
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
 
+let authToken: string | null = null;
+
+export function setAuthToken(token: string | null) {
+  authToken = token;
+}
+
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
-    ...init,
-  });
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    // ngrok 免费域名对无此头的请求返回警告页 HTML 而非 JSON
+    'ngrok-skip-browser-warning': '1',
+  };
+  if (authToken) {
+    headers.Authorization = `Bearer ${authToken}`;
+  }
+  const res = await fetch(`${BASE_URL}${path}`, { headers, ...init });
   if (!res.ok) {
-    throw new Error(`API ${init?.method ?? 'GET'} ${path} failed: ${res.status}`);
+    let detail = `HTTP ${res.status}`;
+    try {
+      const body = await res.json();
+      if (body?.detail) detail = String(body.detail);
+    } catch {
+      // 非 JSON 错误体,保留状态码
+    }
+    throw new ApiError(res.status, detail);
   }
   return res.json() as Promise<T>;
 }
 
 export const api = {
+  register: (username: string, password: string) =>
+    request<AuthResponse>('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    }),
+
+  login: (username: string, password: string) =>
+    request<AuthResponse>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    }),
+
+  listUsers: () => request<UserSummary[]>('/users'),
+
   listDiaries: () => request<DiaryEntry[]>('/diaries'),
 
   createDiary: (content: string) =>
@@ -30,13 +76,15 @@ export const api = {
   deleteDiary: (id: string) =>
     request<{ deleted: string }>(`/diaries/${id}`, { method: 'DELETE' }),
 
-  // 与自己的化身对话;历史与上下文由后端持久化并组装
-  sendToAvatar: (message: string) =>
+  // targetUserId 不传 = 和自己的化身聊;传 = 访问该用户的化身
+  sendToAgent: (message: string, targetUserId?: string) =>
     request<AvatarReply>('/chat', {
       method: 'POST',
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ message, target_user_id: targetUserId ?? null }),
     }),
 
-  // 拉取聊天历史(旧→新),App 启动时恢复会话
-  getChatHistory: () => request<ChatHistoryItem[]>('/chat/history'),
+  getChatHistory: (targetUserId?: string) =>
+    request<ChatHistoryItem[]>(
+      targetUserId ? `/chat/history?target_user_id=${targetUserId}` : '/chat/history',
+    ),
 };

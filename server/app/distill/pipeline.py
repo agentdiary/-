@@ -61,7 +61,9 @@ def build_dialogue_pairs(diary: DiaryEntry, slices: list[str]) -> list[DialogueP
     for s in slices[:MAX_SLICES]:
         situation = llm.chat(_SITUATION_SYSTEM, s)
         pairs.append(
-            DialoguePair(source_diary_id=diary.id, situation=situation, response=s)
+            DialoguePair(
+                user_id=diary.user_id, source_diary_id=diary.id, situation=situation, response=s
+            )
         )
     return pairs
 
@@ -82,7 +84,12 @@ def extract_persona_cards(diary: DiaryEntry, clean_content: str) -> list[Persona
         except (TypeError, ValueError):
             confidence = 0.5
         cards.append(
-            PersonaCard(source_diary_id=diary.id, assertion=assertion, confidence=confidence)
+            PersonaCard(
+                user_id=diary.user_id,
+                source_diary_id=diary.id,
+                assertion=assertion,
+                confidence=confidence,
+            )
         )
     return cards
 

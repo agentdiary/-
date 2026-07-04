@@ -2,9 +2,10 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
+from ..auth import get_current_user
 from ..db import get_session
 from ..distill.pipeline import run_pipeline_for_diary
-from ..models import DialoguePair, DiaryEntry, PersonaCard
+from ..models import DialoguePair, DiaryEntry, PersonaCard, User
 
 router = APIRouter(prefix="/diaries", tags=["diaries"])
 
@@ -14,8 +15,14 @@ class DiaryCreate(BaseModel):
 
 
 @router.get("")
-def list_diaries(session: Session = Depends(get_session)) -> list[DiaryEntry]:
-    stmt = select(DiaryEntry).order_by(DiaryEntry.created_at.desc())  # type: ignore[attr-defined]
+def list_diaries(
+    me: User = Depends(get_current_user), session: Session = Depends(get_session)
+) -> list[DiaryEntry]:
+    stmt = (
+        select(DiaryEntry)
+        .where(DiaryEntry.user_id == me.id)
+        .order_by(DiaryEntry.created_at.desc())  # type: ignore[attr-defined]
+    )
     return list(session.exec(stmt))
 
 
@@ -23,12 +30,13 @@ def list_diaries(session: Session = Depends(get_session)) -> list[DiaryEntry]:
 def create_diary(
     body: DiaryCreate,
     background_tasks: BackgroundTasks,
+    me: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> DiaryEntry:
     content = body.content.strip()
     if not content:
         raise HTTPException(status_code=422, detail="日记内容不能为空")
-    diary = DiaryEntry(content=content)
+    diary = DiaryEntry(user_id=me.id, content=content)
     session.add(diary)
     session.commit()
     session.refresh(diary)
@@ -37,35 +45,44 @@ def create_diary(
     return diary
 
 
+def _owned_diary(diary_id: str, me: User, session: Session) -> DiaryEntry:
+    diary = session.get(DiaryEntry, diary_id)
+    if diary is None or diary.user_id != me.id:
+        # 不区分「不存在」与「不是你的」,避免泄露他人日记 id 的存在性
+        raise HTTPException(status_code=404, detail="日记不存在")
+    return diary
+
+
 @router.post("/{diary_id}/distill")
 def redistill(
     diary_id: str,
     background_tasks: BackgroundTasks,
+    me: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> dict:
     """手动重跑一篇日记的蒸馏(先清掉旧衍生数据,避免重复)。"""
-    diary = session.get(DiaryEntry, diary_id)
-    if diary is None:
-        raise HTTPException(status_code=404, detail="日记不存在")
-    for pair in session.exec(select(DialoguePair).where(DialoguePair.source_diary_id == diary_id)):
+    diary = _owned_diary(diary_id, me, session)
+    for pair in session.exec(select(DialoguePair).where(DialoguePair.source_diary_id == diary.id)):
         session.delete(pair)
-    for card in session.exec(select(PersonaCard).where(PersonaCard.source_diary_id == diary_id)):
+    for card in session.exec(select(PersonaCard).where(PersonaCard.source_diary_id == diary.id)):
         session.delete(card)
     session.commit()
-    background_tasks.add_task(run_pipeline_for_diary, diary_id)
-    return {"status": "queued", "diary_id": diary_id}
+    background_tasks.add_task(run_pipeline_for_diary, diary.id)
+    return {"status": "queued", "diary_id": diary.id}
 
 
 @router.delete("/{diary_id}")
-def delete_diary(diary_id: str, session: Session = Depends(get_session)) -> dict:
-    diary = session.get(DiaryEntry, diary_id)
-    if diary is None:
-        raise HTTPException(status_code=404, detail="日记不存在")
+def delete_diary(
+    diary_id: str,
+    me: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> dict:
+    diary = _owned_diary(diary_id, me, session)
     # 隐私红线:级联删除所有衍生数据
-    for pair in session.exec(select(DialoguePair).where(DialoguePair.source_diary_id == diary_id)):
+    for pair in session.exec(select(DialoguePair).where(DialoguePair.source_diary_id == diary.id)):
         session.delete(pair)
-    for card in session.exec(select(PersonaCard).where(PersonaCard.source_diary_id == diary_id)):
+    for card in session.exec(select(PersonaCard).where(PersonaCard.source_diary_id == diary.id)):
         session.delete(card)
     session.delete(diary)
     session.commit()
-    return {"deleted": diary_id}
+    return {"deleted": diary.id}

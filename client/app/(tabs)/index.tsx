@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { Redirect, router } from 'expo-router';
 import { useEffect } from 'react';
 import {
   Alert,
@@ -16,16 +16,26 @@ import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import type { DiaryEntry } from '@/lib/types';
+import { useAuthStore } from '@/stores/auth-store';
 import { useDiaryStore } from '@/stores/diary-store';
 
 function formatDate(iso: string) {
-  const d = new Date(iso);
+  // 后端存 UTC 但序列化不带时区标记,补上 Z 让 Date 按 UTC 解析,再显示为本机时间
+  const d = new Date(iso.endsWith('Z') || iso.includes('+') ? iso : `${iso}Z`);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
     d.getDate(),
   ).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
 export default function DiaryListScreen() {
+  const token = useAuthStore((s) => s.token);
+  if (!token) {
+    return <Redirect href="/login" />;
+  }
+  return <DiaryList />;
+}
+
+function DiaryList() {
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? 'light';
   const { entries, loading, error, refresh, remove } = useDiaryStore();

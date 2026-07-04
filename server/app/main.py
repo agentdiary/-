@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .db import init_db
-from .routers import chat, diaries, persona
+from .routers import auth_routes, chat, diaries, persona, users
 
 
 @asynccontextmanager
@@ -39,6 +39,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth_routes.router)
+app.include_router(users.router)
 app.include_router(diaries.router)
 app.include_router(chat.router)
 app.include_router(persona.router)

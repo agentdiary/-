@@ -1,17 +1,18 @@
 {
   "expo": {
-    "name": "client",
-    "slug": "client",
+    "name": "AgentDiary",
+    "slug": "agentdiary",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "client",
+    "scheme": "agentdiary",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true
     },
     "android": {
+      "package": "com.i1iyi.agentdiary",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -38,11 +39,25 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "f31aa4a2-2459-440e-a6b2-49e0f491313f"
+      }
+    },
+    "owner": "1iyi1",
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/f31aa4a2-2459-440e-a6b2-49e0f491313f"
     }
   }
 }

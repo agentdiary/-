@@ -1,10 +1,23 @@
-// 与后端 server/app/models.py 保持一致的传输类型
+// 与后端 server/app 各路由的传输类型保持一致
 
 export interface DiaryEntry {
   id: string;
   content: string;
   created_at: string; // ISO 8601
   updated_at: string;
+}
+
+export interface AuthResponse {
+  token: string;
+  user_id: string;
+  username: string;
+}
+
+export interface UserSummary {
+  id: string;
+  username: string;
+  card_count: number;
+  is_builtin: boolean;
 }
 
 export interface ChatHistoryItem {
