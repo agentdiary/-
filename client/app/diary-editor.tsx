@@ -36,9 +36,7 @@ export default function DiaryEditorScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.flex}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={styles.flex} behavior="padding">
       <ThemedView style={styles.container}>
         <TextInput
           style={[styles.input, { color: Colors[colorScheme].text }]}

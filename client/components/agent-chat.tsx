@@ -90,8 +90,8 @@ export function AgentChat({
   return (
     <KeyboardAvoidingView
       style={styles.flex}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={90}>
+      behavior="padding"
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
       <FlatList
         // 空列表时不启用 inverted:各平台对空态组件的翻转行为不一致,会把提示文字翻转
         inverted={messages.length > 0}
