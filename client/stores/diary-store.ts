@@ -21,6 +21,7 @@ interface DiaryState {
     visibility: DiaryVisibility,
     allowedUserIds: string[],
   ) => Promise<void>;
+  cycleVisibility: (id: string) => Promise<void>;
   remove: (id: string) => Promise<void>;
 }
 
@@ -83,6 +84,15 @@ export const useDiaryStore = create<DiaryState>((set, get) => ({
       await saveQueue(queue);
       set({ pending: queue });
     }
+  },
+
+  // 右滑循环切换可见性:公开 → 仅自己 → 公开(「指定的人」需选人,走编辑器)
+  cycleVisibility: async (id: string) => {
+    const entry = get().entries.find((e) => e.id === id);
+    if (!entry) return;
+    const next = entry.visibility === 'private' ? 'public' : 'private';
+    const updated = await api.setDiaryVisibility(id, next);
+    set({ entries: get().entries.map((e) => (e.id === id ? updated : e)) });
   },
 
   remove: async (id: string) => {

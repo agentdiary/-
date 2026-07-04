@@ -31,11 +31,14 @@ export function AgentChat({
   targetUserId,
   emptyHint,
   avatarImage,
+  keyboardOffset,
 }: {
   targetUserId?: string;
   emptyHint: string;
   // 化身消息旁的小头像(名人肖像);不传则不显示
   avatarImage?: ImageSourcePropType;
+  // 带导航头的页面需传 header 高度,否则键盘规避量不足
+  keyboardOffset?: number;
 }) {
   const scheme = useColorScheme() ?? 'light';
   const tint = Colors[scheme].tint;
@@ -91,7 +94,7 @@ export function AgentChat({
     <KeyboardAvoidingView
       style={styles.flex}
       behavior="padding"
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
+      keyboardVerticalOffset={keyboardOffset ?? (Platform.OS === 'ios' ? 90 : 0)}>
       <FlatList
         // 空列表时不启用 inverted:各平台对空态组件的翻转行为不一致,会把提示文字翻转
         inverted={messages.length > 0}

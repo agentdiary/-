@@ -9,6 +9,9 @@ import {
   Text,
   View,
 } from 'react-native';
+import Swipeable, {
+  type SwipeableMethods,
+} from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ScreenBackground } from '@/components/screen-background';
@@ -52,7 +55,8 @@ export default function DiaryListScreen() {
 function DiaryList() {
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? 'light';
-  const { entries, pending, loading, error, refresh, remove } = useDiaryStore();
+  const { entries, pending, loading, error, refresh, remove, cycleVisibility } =
+    useDiaryStore();
   const diaryBg = useSettingsStore((s) => s.diaryBg);
   const [status, setStatus] = useState<string | null>(null);
 
@@ -122,7 +126,7 @@ function DiaryList() {
           renderItem={({ item: row }) => {
             const label =
               row.kind === 'pending' ? '待同步' : VISIBILITY_LABEL[row.item.visibility];
-            return (
+            const card = (
               <Pressable onLongPress={() => confirmDelete(row)} style={styles.card}>
                 <View style={styles.cardTop}>
                   <ThemedText style={styles.cardDate}>
@@ -137,6 +141,41 @@ function DiaryList() {
                 </View>
                 <ThemedText numberOfLines={4}>{row.item.content}</ThemedText>
               </Pressable>
+            );
+            // 右滑(露出左侧按钮)切换可见性,仅已同步日记;左滑删除
+            const renderLeft =
+              row.kind === 'entry'
+                ? (_p: unknown, _d: unknown, swipeable: SwipeableMethods) => (
+                    <Pressable
+                      style={[styles.action, styles.actionVisibility]}
+                      onPress={() => {
+                        swipeable.close();
+                        cycleVisibility(row.id).catch(() => {});
+                      }}>
+                      <Text style={styles.actionText}>
+                        {row.item.visibility === 'private' ? '设为公开' : '设为仅自己'}
+                      </Text>
+                    </Pressable>
+                  )
+                : undefined;
+            return (
+              <Swipeable
+                friction={2}
+                leftThreshold={60}
+                rightThreshold={60}
+                renderLeftActions={renderLeft}
+                renderRightActions={(_p: unknown, _d: unknown, swipeable: SwipeableMethods) => (
+                  <Pressable
+                    style={[styles.action, styles.actionDelete]}
+                    onPress={() => {
+                      swipeable.close();
+                      confirmDelete(row);
+                    }}>
+                    <Text style={styles.actionText}>删除</Text>
+                  </Pressable>
+                )}>
+                {card}
+              </Swipeable>
             );
           }}
         />
@@ -190,6 +229,16 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   cardDate: { fontSize: 12, opacity: 0.5 },
+  action: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 88,
+    marginVertical: 6,
+    borderRadius: 12,
+  },
+  actionVisibility: { backgroundColor: '#5f8fbf', marginLeft: 16 },
+  actionDelete: { backgroundColor: '#c0392b', marginRight: 16 },
+  actionText: { color: '#fff', fontSize: 13, fontWeight: '600' },
   badge: { fontSize: 11, opacity: 0.6 },
   badgePending: { color: '#c60', opacity: 1 },
   fab: {

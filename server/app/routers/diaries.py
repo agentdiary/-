@@ -64,6 +64,27 @@ def _owned_diary(diary_id: str, me: User, session: Session) -> DiaryEntry:
     return diary
 
 
+class VisibilityUpdate(BaseModel):
+    visibility: str
+
+
+@router.patch("/{diary_id}")
+def update_visibility(
+    diary_id: str,
+    body: VisibilityUpdate,
+    me: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> DiaryEntry:
+    if body.visibility not in VISIBILITIES:
+        raise HTTPException(status_code=422, detail="可见性取值不合法")
+    diary = _owned_diary(diary_id, me, session)
+    diary.visibility = body.visibility
+    session.add(diary)
+    session.commit()
+    session.refresh(diary)
+    return diary
+
+
 @router.post("/{diary_id}/distill")
 def redistill(
     diary_id: str,

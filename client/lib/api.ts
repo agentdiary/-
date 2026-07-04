@@ -84,6 +84,12 @@ export const api = {
 
   getMyStatus: () => request<{ status: string | null }>('/users/me/status'),
 
+  setDiaryVisibility: (id: string, visibility: string) =>
+    request<DiaryEntry>(`/diaries/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ visibility }),
+    }),
+
   // 删除日记会在后端级联删除衍生的对话对与人格卡片(隐私红线)
   deleteDiary: (id: string) =>
     request<{ deleted: string }>(`/diaries/${id}`, { method: 'DELETE' }),
