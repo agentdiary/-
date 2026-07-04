@@ -11,13 +11,15 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ScreenBackground } from '@/components/screen-background';
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import type { DiaryEntry } from '@/lib/types';
 import { useAuthStore } from '@/stores/auth-store';
 import { useDiaryStore } from '@/stores/diary-store';
+import { useSettingsStore } from '@/stores/settings-store';
 
 function formatDate(iso: string) {
   // 后端存 UTC 但序列化不带时区标记,补上 Z 让 Date 按 UTC 解析,再显示为本机时间
@@ -39,6 +41,7 @@ function DiaryList() {
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? 'light';
   const { entries, loading, error, refresh, remove } = useDiaryStore();
+  const diaryBg = useSettingsStore((s) => s.diaryBg);
 
   useEffect(() => {
     refresh();
@@ -52,9 +55,13 @@ function DiaryList() {
   };
 
   return (
-    <ThemedView style={[styles.container, { paddingTop: insets.top }]}>
+    <ScreenBackground setting={diaryBg}>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <ThemedText type="title">日记</ThemedText>
+        <Pressable onPress={() => router.push('/appearance')} hitSlop={8}>
+          <IconSymbol size={22} name="paintbrush.fill" color={Colors[colorScheme].icon} />
+        </Pressable>
       </View>
 
       {error && (
@@ -89,13 +96,20 @@ function DiaryList() {
         {/* 深色模式 tint 为白色,＋ 需要用深色 */}
         <Text style={[styles.fabText, { color: colorScheme === 'dark' ? '#151718' : '#fff' }]}>＋</Text>
       </Pressable>
-    </ThemedView>
+      </View>
+    </ScreenBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingVertical: 12 },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
   error: { color: '#c00', paddingHorizontal: 20, paddingBottom: 8 },
   emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   emptyText: { opacity: 0.5, paddingHorizontal: 40, textAlign: 'center' },

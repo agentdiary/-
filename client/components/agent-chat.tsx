@@ -5,6 +5,8 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Image,
+  type ImageSourcePropType,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -28,9 +30,12 @@ interface Message {
 export function AgentChat({
   targetUserId,
   emptyHint,
+  avatarImage,
 }: {
   targetUserId?: string;
   emptyHint: string;
+  // 化身消息旁的小头像(名人肖像);不传则不显示
+  avatarImage?: ImageSourcePropType;
 }) {
   const scheme = useColorScheme() ?? 'light';
   const tint = Colors[scheme].tint;
@@ -94,23 +99,22 @@ export function AgentChat({
         keyExtractor={(m) => m.id}
         contentContainerStyle={[styles.list, messages.length === 0 && styles.listEmpty]}
         ListEmptyComponent={<ThemedText style={styles.empty}>{emptyHint}</ThemedText>}
-        renderItem={({ item }) => (
-          <View
-            style={[
-              styles.bubble,
-              item.from === 'me'
-                ? [styles.bubbleMe, { backgroundColor: tint }]
-                : styles.bubbleAvatar,
-            ]}>
-            <Text
-              style={[
-                styles.bubbleText,
-                { color: item.from === 'me' ? onTint : Colors[scheme].text },
-              ]}>
-              {item.text}
-            </Text>
-          </View>
-        )}
+        renderItem={({ item }) =>
+          item.from === 'me' ? (
+            <View style={[styles.bubble, styles.bubbleMe, { backgroundColor: tint }]}>
+              <Text style={[styles.bubbleText, { color: onTint }]}>{item.text}</Text>
+            </View>
+          ) : (
+            <View style={styles.avatarRow}>
+              {avatarImage && <Image source={avatarImage} style={styles.portrait} />}
+              <View style={[styles.bubble, styles.bubbleAvatar]}>
+                <Text style={[styles.bubbleText, { color: Colors[scheme].text }]}>
+                  {item.text}
+                </Text>
+              </View>
+            </View>
+          )
+        }
       />
 
       {sending && (
@@ -168,6 +172,8 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 4,
     backgroundColor: 'rgba(127,127,127,0.15)',
   },
+  avatarRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 6 },
+  portrait: { width: 28, height: 28, borderRadius: 14, marginBottom: 6 },
   bubbleText: { fontSize: 16, lineHeight: 22 },
   typing: {
     flexDirection: 'row',
@@ -193,6 +199,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     fontSize: 16,
+    // 略微填充,保证在图片背景上可读
+    backgroundColor: 'rgba(127,127,127,0.08)',
   },
   sendBtn: { borderRadius: 20, paddingHorizontal: 18, paddingVertical: 10 },
   sendText: { fontSize: 15, fontWeight: '600' },

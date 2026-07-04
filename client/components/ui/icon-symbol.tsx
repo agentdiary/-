@@ -21,6 +21,7 @@ const MAPPING = {
   'book.fill': 'menu-book',
   'bubble.left.and.bubble.right.fill': 'chat',
   'person.2.fill': 'people',
+  'paintbrush.fill': 'brush',
 } as IconMapping;
 
 /**

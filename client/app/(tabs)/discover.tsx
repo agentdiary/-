@@ -1,13 +1,34 @@
 import { Redirect, router } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import {
+  FlatList,
+  Image,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { api } from '@/lib/api';
+import { avatarColor, CELEBRITY_PORTRAITS } from '@/lib/celebrity-portraits';
 import type { UserSummary } from '@/lib/types';
 import { useAuthStore } from '@/stores/auth-store';
+
+function UserAvatar({ username }: { username: string }) {
+  const portrait = CELEBRITY_PORTRAITS[username];
+  if (portrait) {
+    return <Image source={portrait} style={styles.avatar} />;
+  }
+  return (
+    <View style={[styles.avatar, { backgroundColor: avatarColor(username) }]}>
+      <Text style={styles.avatarInitial}>{username.slice(0, 1).toUpperCase()}</Text>
+    </View>
+  );
+}
 
 export default function DiscoverScreen() {
   const insets = useSafeAreaInsets();
@@ -64,17 +85,20 @@ export default function DiscoverScreen() {
                 params: { userId: item.id, username: item.username },
               })
             }>
-            <View style={styles.cardRow}>
-              <ThemedText style={styles.cardName}>{item.username}</ThemedText>
-              <ThemedText style={styles.cardMeta}>
-                {item.is_builtin
-                  ? '名人化身'
-                  : item.card_count > 0
-                    ? `人格卡片 ${item.card_count} 张`
-                    : '化身尚未喂养'}
-              </ThemedText>
+            <UserAvatar username={item.username} />
+            <View style={styles.cardBody}>
+              <View style={styles.cardRow}>
+                <ThemedText style={styles.cardName}>{item.username}</ThemedText>
+                <ThemedText style={styles.cardMeta}>
+                  {item.is_builtin
+                    ? '名人化身'
+                    : item.card_count > 0
+                      ? `人格卡片 ${item.card_count} 张`
+                      : '化身尚未喂养'}
+                </ThemedText>
+              </View>
+              <ThemedText style={styles.cardHint}>去和 TA 的化身聊聊 →</ThemedText>
             </View>
-            <ThemedText style={styles.cardHint}>去和 TA 的化身聊聊 →</ThemedText>
           </Pressable>
         )}
       />
@@ -92,10 +116,22 @@ const styles = StyleSheet.create({
   card: {
     marginHorizontal: 16,
     marginVertical: 6,
-    padding: 16,
+    padding: 14,
     borderRadius: 12,
     backgroundColor: 'rgba(127,127,127,0.08)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarInitial: { color: '#fff', fontSize: 18, fontWeight: '600' },
+  cardBody: { flex: 1 },
   cardRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   cardName: { fontSize: 17, fontWeight: '600' },
   cardMeta: { fontSize: 12, opacity: 0.5 },
