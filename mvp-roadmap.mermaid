@@ -1,0 +1,45 @@
+flowchart LR
+    subgraph P0["Phase 0 · 内核验证 (4-6周)"]
+        direction TB
+        P0A[日记录入 App<br/>最小UI: 写/语音]
+        P0B[蒸馏 pipeline v1<br/>切片→逆向对话对→人格卡片]
+        P0C[LoRA 微调单人化身]
+        P0D[自对话界面<br/>用户和自己的化身聊天]
+        P0E{{里程碑: 盲测通过率 ≥ 60%<br/>不达标不进入下一阶段}}
+        P0A --> P0B --> P0C --> P0D --> P0E
+    end
+
+    subgraph P1["Phase 1 · 保真度打磨 (6-8周)"]
+        direction TB
+        P1A[主动提问引擎上线<br/>驱动留存 + 补数据盲区]
+        P1B[“像我/不像我”反馈UI<br/>积累 DPO 偏好对]
+        P1C[DPO 训练环<br/>每周迭代一版化身]
+        P1D[文体计量监控面板]
+        P1E{{里程碑: 通过率 ≥ 80%<br/>7日日记留存 ≥ 40%}}
+        P1A --> P1B --> P1C --> P1D --> P1E
+    end
+
+    subgraph P2["Phase 2 · Agent社交沙盒 (8周)"]
+        direction TB
+        P2A[人格卡片向量匹配<br/>50-100 种子用户内测]
+        P2B[Agent↔Agent 对话引擎<br/>产出摘要+契合度报告]
+        P2C[围观模式<br/>用户可旁观自己化身的社交]
+        P2D{{里程碑: 用户认可契合度报告<br/>“想认识这个人” ≥ 30%}}
+        P2A --> P2B --> P2C --> P2D
+    end
+
+    subgraph P3["Phase 3 · 真人解锁闭环 (6周)"]
+        direction TB
+        P3A[双向确认解锁机制]
+        P3B[破冰包: 化身对话精华<br/>作为真人开场素材]
+        P3C[安全与合规<br/>实名分级/举报/PIPL数据出境]
+        P3D{{北极星: 解锁后真人对话<br/>持续 ≥ 3 天的比例}}
+        P3A --> P3B --> P3C --> P3D
+    end
+
+    P0E ==> P1E ==> P2D ==> P3D
+
+    style P0E fill:#fff3cd,stroke:#b8860b
+    style P1E fill:#fff3cd,stroke:#b8860b
+    style P2D fill:#fff3cd,stroke:#b8860b
+    style P3D fill:#d4edda,stroke:#2e7d32

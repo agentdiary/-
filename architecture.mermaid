@@ -1,0 +1,58 @@
+flowchart TB
+    subgraph L1["① 数据层 Data Layer"]
+        J[碎片化日记流<br/>文本/语音转写]
+        Q[主动提问引擎<br/>每日1问·补全低置信区域]
+        FB[对话反馈信号<br/>“像我/不像我”标注]
+    end
+
+    subgraph L2["② 蒸馏层 Distillation Pipeline"]
+        direction TB
+        SEG[日记切片 + 清洗<br/>去隐私实体·分主题]
+        subgraph STYLE["表层风格通道"]
+            REV[逆向构造对话对<br/>强模型生成“情境→用户口吻回应”]
+            SFT[(SFT 指令数据集)]
+        end
+        subgraph PERSONA["深层人格通道"]
+            EXT[LLM 人格断言抽取<br/>观点/价值排序/幽默方式]
+            CARD[(人格卡片库<br/>带时间戳+置信度+出处)]
+            MERGE[冲突消解<br/>新断言覆盖旧断言]
+        end
+    end
+
+    subgraph L3["③ 模型层 Model Layer"]
+        BASE[开源基座模型 7B-14B]
+        LORA[LoRA 风格微调]
+        DPO[DPO 偏好优化<br/>磨掉AI腔·anti-sycophancy]
+        RAG[RAG 检索人格卡片<br/>对话时注入上下文]
+        TWIN{{数字化身 Agent}}
+    end
+
+    subgraph L4["④ 应用层 Application Layer"]
+        SELF[自对话验证<br/>用户 ↔ 自己的化身]
+        MATCH[匹配引擎<br/>基于人格卡片向量相似度]
+        A2A[Agent ↔ Agent 对话沙盒<br/>生成对话摘要+契合度报告]
+        UNLOCK[双向确认 → 解锁真人对话]
+    end
+
+    subgraph L5["⑤ 评估环 Evaluation Loop"]
+        TURING[图灵式盲测<br/>“这是我会说的话吗”通过率 = 北极星指标]
+        STYLO[文体计量监控<br/>句长/词汇/标点分布漂移]
+    end
+
+    J --> SEG
+    Q --> J
+    SEG --> REV --> SFT
+    SEG --> EXT --> CARD --> MERGE --> CARD
+    SFT --> LORA
+    BASE --> LORA --> DPO --> TWIN
+    CARD --> RAG --> TWIN
+    FB --> DPO
+    TWIN --> SELF
+    SELF -->|通过率达标| MATCH
+    MATCH --> A2A --> UNLOCK
+    SELF --> TURING
+    TURING -->|失真样本| FB
+    TWIN --> STYLO
+    STYLO -->|漂移告警| LORA
+    CARD -.低置信区域.-> Q
+    A2A -.对话中暴露的新信息.-> EXT

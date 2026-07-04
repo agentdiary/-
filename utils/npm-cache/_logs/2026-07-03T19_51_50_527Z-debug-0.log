@@ -1,0 +1,196 @@
+0 verbose cli C:\Users\24062\Downloads\agentdiary\utils\node\node.exe C:\Users\24062\Downloads\agentdiary\utils\node\node_modules\npm\bin\npm-cli.js
+1 info using npm@11.16.0
+2 info using node@v24.18.0
+3 silly config load:file:C:\Users\24062\Downloads\agentdiary\utils\node\node_modules\npm\npmrc
+4 silly config load:file:C:\Users\24062\Downloads\agentdiary\client\.npmrc
+5 silly config load:file:C:\Users\24062\.npmrc
+6 silly config load:file:C:\Users\24062\Downloads\agentdiary\utils\npm-global\etc\npmrc
+7 verbose title npm install zustand react-native-gifted-chat
+8 verbose argv "install" "zustand" "react-native-gifted-chat" "--no-fund" "--no-audit"
+9 verbose logfile logs-max:10 dir:C:\Users\24062\Downloads\agentdiary\utils\npm-cache\_logs\2026-07-03T19_51_50_527Z-
+10 verbose logfile C:\Users\24062\Downloads\agentdiary\utils\npm-cache\_logs\2026-07-03T19_51_50_527Z-debug-0.log
+11 silly logfile start cleaning logs, removing 1 files
+12 silly logfile done cleaning log files
+13 silly packumentCache heap:4496293888 maxSize:1124073472 maxEntrySize:562036736
+14 silly idealTree buildDeps
+15 silly fetch manifest zustand@*
+16 silly packumentCache full:https://registry.npmjs.org/zustand cache-miss
+17 http fetch GET 200 https://registry.npmjs.org/zustand 1089ms (cache miss)
+18 silly packumentCache full:https://registry.npmjs.org/zustand set size:undefined disposed:false
+19 silly fetch manifest @types/react@~19.1.0
+20 silly packumentCache full:https://registry.npmjs.org/@types%2freact cache-miss
+21 http fetch GET 200 https://registry.npmjs.org/@types%2freact 355ms (cache revalidated)
+22 silly packumentCache full:https://registry.npmjs.org/@types%2freact set size:2632776 disposed:false
+23 silly fetch manifest immer@>=9.0.6
+24 silly packumentCache full:https://registry.npmjs.org/immer cache-miss
+25 http fetch GET 200 https://registry.npmjs.org/immer 248ms (cache miss)
+26 silly packumentCache full:https://registry.npmjs.org/immer set size:undefined disposed:false
+27 silly fetch manifest react@19.1.0
+28 silly packumentCache full:https://registry.npmjs.org/react cache-miss
+29 http fetch GET 200 https://registry.npmjs.org/react 167ms (cache revalidated)
+30 silly packumentCache full:https://registry.npmjs.org/react set size:6765208 disposed:false
+31 silly fetch manifest use-sync-external-store@>=1.2.0
+32 silly packumentCache full:https://registry.npmjs.org/use-sync-external-store cache-miss
+33 http fetch GET 200 https://registry.npmjs.org/use-sync-external-store 160ms (cache revalidated)
+34 silly packumentCache full:https://registry.npmjs.org/use-sync-external-store set size:4796169 disposed:false
+35 silly fetch manifest react-native-gifted-chat@*
+36 silly packumentCache full:https://registry.npmjs.org/react-native-gifted-chat cache-miss
+37 http fetch GET 200 https://registry.npmjs.org/react-native-gifted-chat 352ms (cache miss)
+38 silly packumentCache full:https://registry.npmjs.org/react-native-gifted-chat set size:undefined disposed:false
+39 silly fetch manifest react-native@0.81.5
+40 silly packumentCache full:https://registry.npmjs.org/react-native cache-miss
+41 http fetch GET 200 https://registry.npmjs.org/react-native 359ms (cache revalidated)
+42 silly packumentCache full:https://registry.npmjs.org/react-native set size:15431683 disposed:false
+43 silly fetch manifest react-native-gesture-handler@~2.28.0
+44 silly packumentCache full:https://registry.npmjs.org/react-native-gesture-handler cache-miss
+45 http fetch GET 200 https://registry.npmjs.org/react-native-gesture-handler 307ms (cache revalidated)
+46 silly packumentCache full:https://registry.npmjs.org/react-native-gesture-handler set size:1172620 disposed:false
+47 silly fetch manifest react-native-keyboard-controller@>=1.0.0
+48 silly packumentCache full:https://registry.npmjs.org/react-native-keyboard-controller cache-miss
+49 http fetch GET 200 https://registry.npmjs.org/react-native-keyboard-controller 340ms (cache miss)
+50 silly packumentCache full:https://registry.npmjs.org/react-native-keyboard-controller set size:undefined disposed:false
+51 silly fetch manifest react-native-reanimated@~4.1.1
+52 silly packumentCache full:https://registry.npmjs.org/react-native-reanimated cache-miss
+53 http fetch GET 200 https://registry.npmjs.org/react-native-reanimated 325ms (cache revalidated)
+54 silly packumentCache full:https://registry.npmjs.org/react-native-reanimated set size:11050607 disposed:false
+55 silly fetch manifest react-native-worklets@0.5.1
+56 silly packumentCache full:https://registry.npmjs.org/react-native-worklets cache-miss
+57 http fetch GET 200 https://registry.npmjs.org/react-native-worklets 347ms (cache revalidated)
+58 silly packumentCache full:https://registry.npmjs.org/react-native-worklets set size:2849351 disposed:false
+59 silly fetch manifest @babel/core@^7.0.0-0
+60 silly packumentCache full:https://registry.npmjs.org/@babel%2fcore cache-miss
+61 http fetch GET 200 https://registry.npmjs.org/@babel%2fcore 156ms (cache revalidated)
+62 silly packumentCache full:https://registry.npmjs.org/@babel%2fcore set size:788258 disposed:false
+63 silly fetch manifest react-native-safe-area-context@~5.6.0
+64 silly packumentCache full:https://registry.npmjs.org/react-native-safe-area-context cache-miss
+65 http fetch GET 200 https://registry.npmjs.org/react-native-safe-area-context 322ms (cache revalidated)
+66 silly packumentCache full:https://registry.npmjs.org/react-native-safe-area-context set size:667318 disposed:false
+67 silly placeDep ROOT react-native-gifted-chat@3.4.0 OK for: client@1.0.0 want: *
+68 silly placeDep ROOT react-native-keyboard-controller@1.21.13 OK for: react-native-gifted-chat@3.4.0 want: >=1.0.0
+69 silly placeDep ROOT zustand@5.0.14 OK for: client@1.0.0 want: *
+70 silly fetch manifest dayjs@^1.11.21
+71 silly packumentCache full:https://registry.npmjs.org/dayjs cache-miss
+72 silly fetch manifest lodash.isequal@^4.5.0
+73 silly packumentCache full:https://registry.npmjs.org/lodash.isequal cache-miss
+74 silly fetch manifest @types/lodash.isequal@^4.5.8
+75 silly packumentCache full:https://registry.npmjs.org/@types%2flodash.isequal cache-miss
+76 silly fetch manifest react-native-zoom-reanimated@^1.5.4
+77 silly packumentCache full:https://registry.npmjs.org/react-native-zoom-reanimated cache-miss
+78 silly fetch manifest @expo/react-native-action-sheet@^4.1.1
+79 silly packumentCache full:https://registry.npmjs.org/@expo%2freact-native-action-sheet cache-miss
+80 http fetch GET 200 https://registry.npmjs.org/dayjs 181ms (cache miss)
+81 silly packumentCache full:https://registry.npmjs.org/dayjs set size:undefined disposed:false
+82 http fetch GET 200 https://registry.npmjs.org/lodash.isequal 600ms (cache miss)
+83 silly packumentCache full:https://registry.npmjs.org/lodash.isequal set size:undefined disposed:false
+84 http fetch GET 200 https://registry.npmjs.org/@types%2flodash.isequal 784ms (cache miss)
+85 silly packumentCache full:https://registry.npmjs.org/@types%2flodash.isequal set size:undefined disposed:false
+86 http fetch GET 200 https://registry.npmjs.org/react-native-zoom-reanimated 858ms (cache miss)
+87 silly packumentCache full:https://registry.npmjs.org/react-native-zoom-reanimated set size:undefined disposed:false
+88 http fetch GET 200 https://registry.npmjs.org/@expo%2freact-native-action-sheet 1182ms (cache miss)
+89 silly packumentCache full:https://registry.npmjs.org/@expo%2freact-native-action-sheet set size:undefined disposed:false
+90 silly fetch manifest react@>=18.0.0
+91 silly packumentCache full:https://registry.npmjs.org/react cache-miss
+92 http cache https://registry.npmjs.org/react 32ms (cache hit)
+93 silly packumentCache full:https://registry.npmjs.org/react set size:6765208 disposed:false
+94 silly fetch manifest react-native@*
+95 silly packumentCache full:https://registry.npmjs.org/react-native cache-miss
+96 http cache https://registry.npmjs.org/react-native 56ms (cache hit)
+97 silly packumentCache full:https://registry.npmjs.org/react-native set size:15431683 disposed:false
+98 silly fetch manifest @react-native/jest-preset@0.86.0
+99 silly packumentCache full:https://registry.npmjs.org/@react-native%2fjest-preset cache-miss
+100 http fetch GET 200 https://registry.npmjs.org/@react-native%2fjest-preset 157ms (cache revalidated)
+101 silly packumentCache full:https://registry.npmjs.org/@react-native%2fjest-preset set size:237478 disposed:false
+102 silly fetch manifest @types/react@^19.1.1
+103 silly packumentCache full:https://registry.npmjs.org/@types%2freact cache-miss
+104 http cache https://registry.npmjs.org/@types%2freact 20ms (cache hit)
+105 silly packumentCache full:https://registry.npmjs.org/@types%2freact set size:2632776 disposed:false
+106 silly fetch manifest react-native-gesture-handler@>=2.0.0
+107 silly packumentCache full:https://registry.npmjs.org/react-native-gesture-handler cache-miss
+108 http cache https://registry.npmjs.org/react-native-gesture-handler 48ms (cache hit)
+109 silly packumentCache full:https://registry.npmjs.org/react-native-gesture-handler set size:1172620 disposed:false
+110 silly fetch manifest react-native-reanimated@>=3.0.0 || ^4.0.0
+111 silly packumentCache full:https://registry.npmjs.org/react-native-reanimated cache-miss
+112 http cache https://registry.npmjs.org/react-native-reanimated 47ms (cache hit)
+113 silly packumentCache full:https://registry.npmjs.org/react-native-reanimated set size:11050607 disposed:false
+114 silly fetch manifest react-native-worklets@0.10.x
+115 silly packumentCache full:https://registry.npmjs.org/react-native-worklets cache-miss
+116 http cache https://registry.npmjs.org/react-native-worklets 20ms (cache hit)
+117 silly packumentCache full:https://registry.npmjs.org/react-native-worklets set size:2849351 disposed:false
+118 silly fetch manifest @babel/core@*
+119 silly packumentCache full:https://registry.npmjs.org/@babel%2fcore cache-hit
+120 silly fetch manifest @react-native/metro-config@*
+121 silly packumentCache full:https://registry.npmjs.org/@react-native%2fmetro-config cache-miss
+122 http fetch GET 200 https://registry.npmjs.org/@react-native%2fmetro-config 185ms (cache revalidated)
+123 silly packumentCache full:https://registry.npmjs.org/@react-native%2fmetro-config set size:2254293 disposed:false
+124 silly placeDep ROOT @expo/react-native-action-sheet@4.1.1 OK for: react-native-gifted-chat@3.4.0 want: ^4.1.1
+125 silly placeDep ROOT @types/lodash.isequal@4.5.8 OK for: react-native-gifted-chat@3.4.0 want: ^4.5.8
+126 silly placeDep ROOT dayjs@1.11.21 OK for: react-native-gifted-chat@3.4.0 want: ^1.11.21
+127 silly placeDep ROOT lodash.isequal@4.5.0 OK for: react-native-gifted-chat@3.4.0 want: ^4.5.0
+128 silly placeDep ROOT react-native-zoom-reanimated@1.5.4 OK for: react-native-gifted-chat@3.4.0 want: ^1.5.4
+129 silly fetch manifest @types/hoist-non-react-statics@^3.3.1
+130 silly packumentCache full:https://registry.npmjs.org/@types%2fhoist-non-react-statics cache-miss
+131 silly fetch manifest @types/lodash@*
+132 silly packumentCache full:https://registry.npmjs.org/@types%2flodash cache-miss
+133 http fetch GET 200 https://registry.npmjs.org/@types%2flodash 373ms (cache miss)
+134 silly packumentCache full:https://registry.npmjs.org/@types%2flodash set size:undefined disposed:false
+135 http fetch GET 200 https://registry.npmjs.org/@types%2fhoist-non-react-statics 458ms (cache miss)
+136 silly packumentCache full:https://registry.npmjs.org/@types%2fhoist-non-react-statics set size:undefined disposed:false
+137 silly fetch manifest @types/react@*
+138 silly packumentCache full:https://registry.npmjs.org/@types%2freact cache-miss
+139 http cache https://registry.npmjs.org/@types%2freact 19ms (cache hit)
+140 silly packumentCache full:https://registry.npmjs.org/@types%2freact set size:2632776 disposed:false
+141 silly placeDep ROOT @types/hoist-non-react-statics@3.3.7 OK for: @expo/react-native-action-sheet@4.1.1 want: ^3.3.1
+142 silly placeDep ROOT @types/lodash@4.17.24 OK for: @types/lodash.isequal@4.5.8 want: *
+143 silly reify moves {}
+144 http cache react-native-zoom-reanimated@https://registry.npmjs.org/react-native-zoom-reanimated/-/react-native-zoom-reanimated-1.5.4.tgz 0ms (cache hit)
+145 http cache @types/lodash@https://registry.npmjs.org/@types/lodash/-/lodash-4.17.24.tgz 0ms (cache hit)
+146 http cache @types/hoist-non-react-statics@https://registry.npmjs.org/@types/hoist-non-react-statics/-/hoist-non-react-statics-3.3.7.tgz 0ms (cache hit)
+147 http cache lodash.isequal@https://registry.npmjs.org/lodash.isequal/-/lodash.isequal-4.5.0.tgz 0ms (cache hit)
+148 http cache @expo/react-native-action-sheet@https://registry.npmjs.org/@expo/react-native-action-sheet/-/react-native-action-sheet-4.1.1.tgz 0ms (cache hit)
+149 http cache dayjs@https://registry.npmjs.org/dayjs/-/dayjs-1.11.21.tgz 0ms (cache hit)
+150 http cache @types/lodash.isequal@https://registry.npmjs.org/@types/lodash.isequal/-/lodash.isequal-4.5.8.tgz 0ms (cache hit)
+151 silly tarball no local data for react-native-zoom-reanimated@https://registry.npmjs.org/react-native-zoom-reanimated/-/react-native-zoom-reanimated-1.5.4.tgz. Extracting by manifest.
+152 silly tarball no local data for @types/lodash@https://registry.npmjs.org/@types/lodash/-/lodash-4.17.24.tgz. Extracting by manifest.
+153 silly tarball no local data for @types/hoist-non-react-statics@https://registry.npmjs.org/@types/hoist-non-react-statics/-/hoist-non-react-statics-3.3.7.tgz. Extracting by manifest.
+154 silly tarball no local data for lodash.isequal@https://registry.npmjs.org/lodash.isequal/-/lodash.isequal-4.5.0.tgz. Extracting by manifest.
+155 silly tarball no local data for @expo/react-native-action-sheet@https://registry.npmjs.org/@expo/react-native-action-sheet/-/react-native-action-sheet-4.1.1.tgz. Extracting by manifest.
+156 silly tarball no local data for dayjs@https://registry.npmjs.org/dayjs/-/dayjs-1.11.21.tgz. Extracting by manifest.
+157 http cache zustand@https://registry.npmjs.org/zustand/-/zustand-5.0.14.tgz 0ms (cache hit)
+158 silly tarball no local data for @types/lodash.isequal@https://registry.npmjs.org/@types/lodash.isequal/-/lodash.isequal-4.5.8.tgz. Extracting by manifest.
+159 http cache react-native-gifted-chat@https://registry.npmjs.org/react-native-gifted-chat/-/react-native-gifted-chat-3.4.0.tgz 0ms (cache hit)
+160 http cache react-native-keyboard-controller@https://registry.npmjs.org/react-native-keyboard-controller/-/react-native-keyboard-controller-1.21.13.tgz 0ms (cache hit)
+161 silly tarball no local data for zustand@https://registry.npmjs.org/zustand/-/zustand-5.0.14.tgz. Extracting by manifest.
+162 silly tarball no local data for react-native-gifted-chat@https://registry.npmjs.org/react-native-gifted-chat/-/react-native-gifted-chat-3.4.0.tgz. Extracting by manifest.
+163 silly tarball no local data for react-native-keyboard-controller@https://registry.npmjs.org/react-native-keyboard-controller/-/react-native-keyboard-controller-1.21.13.tgz. Extracting by manifest.
+164 http fetch GET 200 https://registry.npmjs.org/@types/hoist-non-react-statics/-/hoist-non-react-statics-3.3.7.tgz 184ms (cache miss)
+165 http fetch GET 200 https://registry.npmjs.org/lodash.isequal/-/lodash.isequal-4.5.0.tgz 190ms (cache miss)
+166 warn deprecated lodash.isequal@4.5.0: This package is deprecated. Use require('node:util').isDeepStrictEqual instead.
+167 http fetch GET 200 https://registry.npmjs.org/react-native-zoom-reanimated/-/react-native-zoom-reanimated-1.5.4.tgz 378ms (cache miss)
+168 http fetch GET 200 https://registry.npmjs.org/@expo/react-native-action-sheet/-/react-native-action-sheet-4.1.1.tgz 517ms (cache miss)
+169 http fetch GET 200 https://registry.npmjs.org/@types/lodash.isequal/-/lodash.isequal-4.5.8.tgz 771ms (cache miss)
+170 http fetch GET 200 https://registry.npmjs.org/zustand/-/zustand-5.0.14.tgz 794ms (cache miss)
+171 http fetch GET 200 https://registry.npmjs.org/react-native-gifted-chat/-/react-native-gifted-chat-3.4.0.tgz 1260ms (cache miss)
+172 warn deprecated react-native-gifted-chat@3.4.0: Maintenance mode - development moved to @kesha-antonov/react-native-chat (https://www.npmjs.com/package/@kesha-antonov/react-native-chat)
+173 http fetch GET 200 https://registry.npmjs.org/@types/lodash/-/lodash-4.17.24.tgz 1773ms (cache miss)
+174 http fetch GET 200 https://registry.npmjs.org/dayjs/-/dayjs-1.11.21.tgz 2041ms (cache miss)
+175 http fetch GET 200 https://registry.npmjs.org/react-native-keyboard-controller/-/react-native-keyboard-controller-1.21.13.tgz 3685ms (cache miss)
+176 silly ADD node_modules/@types/lodash
+177 silly ADD node_modules/@types/hoist-non-react-statics
+178 silly ADD node_modules/react-native-zoom-reanimated
+179 silly ADD node_modules/lodash.isequal
+180 silly ADD node_modules/dayjs
+181 silly ADD node_modules/@types/lodash.isequal
+182 silly ADD node_modules/@expo/react-native-action-sheet
+183 silly ADD node_modules/zustand
+184 silly ADD node_modules/react-native-keyboard-controller
+185 silly ADD node_modules/react-native-gifted-chat
+186 warn allow-scripts 1 package has install scripts not yet covered by allowScripts:
+186 warn allow-scripts   unrs-resolver@1.12.2 (install: (install scripts present))
+186 warn allow-scripts
+186 warn allow-scripts Run `npm approve-scripts --allow-scripts-pending` to review, or `npm approve-scripts <pkg>` to allow.
+187 verbose cwd C:\Users\24062\Downloads\agentdiary\client
+188 verbose os Windows_NT 10.0.26200
+189 verbose node v24.18.0
+190 verbose npm  v11.16.0
+191 verbose exit 0
+192 info ok
