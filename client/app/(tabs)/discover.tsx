@@ -117,7 +117,9 @@ export default function DiscoverScreen() {
         renderItem={({ item, drag, isActive }: RenderItemParams<UserSummary>) => (
           <ScaleDecorator activeScale={1.03}>
             <Pressable
-              style={[styles.card, isActive && styles.cardActive]}
+              // 拿起时只用 ScaleDecorator 的缩放反馈;之前额外叠加的背景色瞬时切换
+              // 和缩放动画不同步,松手瞬间两者对不上就是那一下"闪烁"
+              style={styles.card}
               onLongPress={drag}
               delayLongPress={220}
               disabled={isActive}
@@ -170,9 +172,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-  },
-  cardActive: {
-    backgroundColor: 'rgba(127,127,127,0.18)',
   },
   avatar: {
     width: 48,
