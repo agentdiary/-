@@ -203,7 +203,8 @@ function DiaryRow({
   }, [x, y]);
 
   const gesture = Gesture.Pan()
-    .minDistance(3)
+    // 起手距离调大,轻微左右滑不触发(仍保留上下漂移手感)
+    .minDistance(14)
     .onBegin(() => {
       startX.value = x.value;
     })
@@ -227,12 +228,12 @@ function DiaryRow({
   }));
 
   const visibilityStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(x.value, [18, COMMIT_THRESHOLD], [0, 1], Extrapolation.CLAMP),
+    opacity: interpolate(x.value, [40, COMMIT_THRESHOLD], [0, 1], Extrapolation.CLAMP),
     transform: [{ translateX: interpolate(x.value, [0, OPEN_X], [-22, 0], Extrapolation.CLAMP) }],
   }));
 
   const deleteStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(-x.value, [18, COMMIT_THRESHOLD], [0, 1], Extrapolation.CLAMP),
+    opacity: interpolate(-x.value, [40, COMMIT_THRESHOLD], [0, 1], Extrapolation.CLAMP),
     transform: [{ translateX: interpolate(x.value, [DELETE_X, 0], [0, 22], Extrapolation.CLAMP) }],
   }));
 
