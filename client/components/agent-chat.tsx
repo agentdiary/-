@@ -4,6 +4,7 @@ import {
   FlatList,
   Image,
   type ImageSourcePropType,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -46,6 +47,22 @@ export function AgentChat({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Android + 带导航头的页面(传了 keyboardOffset):KAV 在 react-native-screens
+  // 的带头容器里计算不可靠(偏高/偏低反复),改为监听键盘高度手动垫底
+  const manualPad = Platform.OS === 'android' && keyboardOffset !== undefined;
+  const [kbHeight, setKbHeight] = useState(0);
+  useEffect(() => {
+    if (!manualPad) return;
+    const show = Keyboard.addListener('keyboardDidShow', (e) =>
+      setKbHeight(e.endCoordinates.height),
+    );
+    const hide = Keyboard.addListener('keyboardDidHide', () => setKbHeight(0));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, [manualPad]);
+
   const load = useCallback(async () => {
     try {
       const items = await api.getChatHistory(targetUserId);
@@ -87,9 +104,11 @@ export function AgentChat({
 
   return (
     <KeyboardAvoidingView
-      style={styles.flex}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      // iOS(padding)需要 header 高度补偿;Android(height)自身按窗口计算,补偿会过量
+      style={[
+        styles.flex,
+        manualPad && kbHeight > 0 && { paddingBottom: Math.max(0, kbHeight - insets.bottom) },
+      ]}
+      behavior={Platform.OS === 'ios' ? 'padding' : manualPad ? undefined : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? (keyboardOffset ?? 0) : 0}>
       <FlatList
         inverted={messages.length > 0}
