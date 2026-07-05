@@ -38,8 +38,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingHorizontal: 24,
+    paddingTop: 10,
+    paddingBottom: 12,
   },
   logout: { fontSize: 13, opacity: 0.5 },
 });

@@ -6,6 +6,7 @@ import type {
   AvatarReply,
   ChatHistoryItem,
   DiaryEntry,
+  DiaryVisibility,
   UserSummary,
 } from './types';
 
@@ -66,7 +67,11 @@ export const api = {
 
   listDiaries: () => request<DiaryEntry[]>('/diaries'),
 
-  createDiary: (content: string, visibility = 'public', allowedUserIds: string[] = []) =>
+  createDiary: (
+    content: string,
+    visibility: DiaryVisibility = 'public',
+    allowedUserIds: string[] = [],
+  ) =>
     request<DiaryEntry>('/diaries', {
       method: 'POST',
       body: JSON.stringify({
@@ -84,7 +89,7 @@ export const api = {
 
   getMyStatus: () => request<{ status: string | null }>('/users/me/status'),
 
-  setDiaryVisibility: (id: string, visibility: string) =>
+  setDiaryVisibility: (id: string, visibility: DiaryVisibility) =>
     request<DiaryEntry>(`/diaries/${id}`, {
       method: 'PATCH',
       body: JSON.stringify({ visibility }),

@@ -3,13 +3,15 @@
 
 import * as FileSystem from 'expo-file-system/legacy';
 
+import type { DiaryVisibility } from './types';
+
 const QUEUE_FILE = `${FileSystem.documentDirectory}pending-diaries.json`;
 const CACHE_FILE = `${FileSystem.documentDirectory}diaries-cache.json`;
 
 export interface PendingDiary {
   local_id: string;
   content: string;
-  visibility: string;
+  visibility: DiaryVisibility;
   allowed_user_ids: string[];
   created_at: string; // 本地落笔时间
 }

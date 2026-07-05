@@ -12,7 +12,7 @@ import type { DiaryEntry, DiaryVisibility } from '@/lib/types';
 
 interface DiaryState {
   entries: DiaryEntry[];
-  pending: PendingDiary[]; // 断网时写的,待同步
+  pending: PendingDiary[];
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
@@ -21,11 +21,11 @@ interface DiaryState {
     visibility: DiaryVisibility,
     allowedUserIds: string[],
   ) => Promise<void>;
+  setVisibility: (id: string, visibility: DiaryVisibility) => Promise<void>;
   cycleVisibility: (id: string) => Promise<void>;
   remove: (id: string) => Promise<void>;
 }
 
-// 网络层失败(断网/超时)才离线排队;服务器 4xx 是业务错误,照常抛出
 const isNetworkError = (e: unknown) => !(e instanceof ApiError);
 
 export const useDiaryStore = create<DiaryState>((set, get) => ({
@@ -36,7 +36,6 @@ export const useDiaryStore = create<DiaryState>((set, get) => ({
 
   refresh: async () => {
     set({ loading: true, error: null });
-    // 先尝试补传离线队列
     let queue = await loadQueue();
     if (queue.length > 0) {
       const remaining: PendingDiary[] = [];
@@ -44,7 +43,7 @@ export const useDiaryStore = create<DiaryState>((set, get) => ({
         try {
           await api.createDiary(item.content, item.visibility, item.allowed_user_ids);
         } catch {
-          remaining.push(item); // 仍失败的留在队列
+          remaining.push(item);
         }
       }
       queue = remaining;
@@ -55,13 +54,12 @@ export const useDiaryStore = create<DiaryState>((set, get) => ({
       await saveCache(entries);
       set({ entries, pending: queue, loading: false });
     } catch {
-      // 离线:用本地缓存顶上
       const cached = (await loadCache()) as DiaryEntry[];
       set({
         entries: cached,
         pending: queue,
         loading: false,
-        error: '当前离线,展示的是本地缓存;新日记会先存在本机,联网后自动同步。',
+        error: '当前离线，展示的是本地缓存；新日记会先存在本机，联网后自动同步。',
       });
     }
   },
@@ -72,7 +70,6 @@ export const useDiaryStore = create<DiaryState>((set, get) => ({
       set({ entries: [entry, ...get().entries] });
     } catch (e) {
       if (!isNetworkError(e)) throw e;
-      // 断网:落本地队列,联网后 refresh 时补传
       const item: PendingDiary = {
         local_id: `local-${Date.now()}`,
         content,
@@ -86,17 +83,37 @@ export const useDiaryStore = create<DiaryState>((set, get) => ({
     }
   },
 
-  // 右滑循环切换可见性:公开 → 仅自己 → 公开(「指定的人」需选人,走编辑器)
+  setVisibility: async (id, visibility) => {
+    if (id.startsWith('local-')) {
+      const queue = get().pending.map((p) =>
+        p.local_id === id
+          ? {
+              ...p,
+              visibility,
+              allowed_user_ids: visibility === 'restricted' ? p.allowed_user_ids : [],
+            }
+          : p,
+      );
+      await saveQueue(queue);
+      set({ pending: queue });
+      return;
+    }
+
+    const updated = await api.setDiaryVisibility(id, visibility);
+    const entries = get().entries.map((e) => (e.id === id ? updated : e));
+    await saveCache(entries);
+    set({ entries });
+  },
+
   cycleVisibility: async (id: string) => {
     const entry = get().entries.find((e) => e.id === id);
     if (!entry) return;
-    const next = entry.visibility === 'private' ? 'public' : 'private';
-    const updated = await api.setDiaryVisibility(id, next);
-    set({ entries: get().entries.map((e) => (e.id === id ? updated : e)) });
+    const order: DiaryVisibility[] = ['public', 'restricted', 'private'];
+    const next = order[(order.indexOf(entry.visibility) + 1) % order.length];
+    await get().setVisibility(id, next);
   },
 
   remove: async (id: string) => {
-    // 未同步的本地日记直接从队列删
     if (id.startsWith('local-')) {
       const queue = get().pending.filter((p) => p.local_id !== id);
       await saveQueue(queue);
@@ -104,6 +121,8 @@ export const useDiaryStore = create<DiaryState>((set, get) => ({
       return;
     }
     await api.deleteDiary(id);
-    set({ entries: get().entries.filter((e) => e.id !== id) });
+    const entries = get().entries.filter((e) => e.id !== id);
+    await saveCache(entries);
+    set({ entries });
   },
 }));

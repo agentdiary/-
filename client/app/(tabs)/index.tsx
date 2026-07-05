@@ -9,9 +9,21 @@ import {
   Text,
   View,
 } from 'react-native';
-import Swipeable, {
-  type SwipeableMethods,
-} from 'react-native-gesture-handler/ReanimatedSwipeable';
+// 手势区域内的按钮必须用 gesture-handler 自家的 Pressable:
+// RNGH 的命中判定基于布局位置而非视觉变换,普通 Pressable 会被滑开的卡片"原位"拦截
+import {
+  Gesture,
+  GestureDetector,
+  Pressable as GHPressable,
+} from 'react-native-gesture-handler';
+import Animated, {
+  Extrapolation,
+  interpolate,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ScreenBackground } from '@/components/screen-background';
@@ -21,13 +33,12 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { api } from '@/lib/api';
 import type { PendingDiary } from '@/lib/offline-queue';
-import type { DiaryEntry } from '@/lib/types';
+import type { DiaryEntry, DiaryVisibility } from '@/lib/types';
 import { useAuthStore } from '@/stores/auth-store';
 import { useDiaryStore } from '@/stores/diary-store';
 import { useSettingsStore } from '@/stores/settings-store';
 
 function formatDate(iso: string) {
-  // 后端存 UTC 但序列化不带时区标记,补上 Z 让 Date 按 UTC 解析,再显示为本机时间
   const d = new Date(iso.endsWith('Z') || iso.includes('+') ? iso : `${iso}Z`);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
     d.getDate(),
@@ -38,11 +49,21 @@ type Row =
   | { kind: 'pending'; id: string; item: PendingDiary }
   | { kind: 'entry'; id: string; item: DiaryEntry };
 
-const VISIBILITY_LABEL: Record<string, string | null> = {
-  public: null, // 默认不标注,保持清爽
-  restricted: '指定的人',
+const VISIBILITY_LABEL: Record<DiaryVisibility, string> = {
+  public: '公开',
+  restricted: '指定用户',
   private: '仅自己',
 };
+
+const VISIBILITY_OPTIONS: { key: DiaryVisibility; label: string }[] = [
+  { key: 'public', label: '公开' },
+  { key: 'restricted', label: '指定' },
+  { key: 'private', label: '自己' },
+];
+
+const OPEN_X = 132;
+const DELETE_X = -104;
+const COMMIT_THRESHOLD = 92;
 
 export default function DiaryListScreen() {
   const token = useAuthStore((s) => s.token);
@@ -55,8 +76,7 @@ export default function DiaryListScreen() {
 function DiaryList() {
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? 'light';
-  const { entries, pending, loading, error, refresh, remove, cycleVisibility } =
-    useDiaryStore();
+  const { entries, pending, loading, error, refresh, remove, setVisibility } = useDiaryStore();
   const diaryBg = useSettingsStore((s) => s.diaryBg);
   const [status, setStatus] = useState<string | null>(null);
 
@@ -64,7 +84,6 @@ function DiaryList() {
     refresh();
   }, [refresh]);
 
-  // 从状态编辑页返回时刷新状态芯片
   useFocusEffect(
     useCallback(() => {
       api
@@ -81,10 +100,10 @@ function DiaryList() {
 
   const confirmDelete = (row: Row) => {
     Alert.alert(
-      row.kind === 'pending' ? '删除这篇未同步的日记?' : '删除这篇日记?',
+      row.kind === 'pending' ? '删除这篇未同步日记？' : '删除这篇日记？',
       row.kind === 'pending'
-        ? '它还没有上传,删除后不可恢复。'
-        : '衍生的对话对与人格卡片会一并删除,不可恢复。',
+        ? '它还没有上传，删除后不可恢复。'
+        : '衍生的对话对与人格卡片会一起删除，不可恢复。',
       [
         { text: '取消', style: 'cancel' },
         { text: '删除', style: 'destructive', onPress: () => remove(row.id) },
@@ -97,15 +116,14 @@ function DiaryList() {
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.header}>
           <ThemedText type="title">日记</ThemedText>
-          <Pressable onPress={() => router.push('/appearance')} hitSlop={8}>
-            <IconSymbol size={22} name="paintbrush.fill" color={Colors[colorScheme].icon} />
+          <Pressable style={styles.headerButton} onPress={() => router.push('/appearance')} hitSlop={8}>
+            <IconSymbol size={24} name="paintbrush.fill" color={Colors[colorScheme].icon} />
           </Pressable>
         </View>
 
-        {/* 今日状态芯片:展示给来访者,并影响化身当天语气 */}
         <Pressable style={styles.statusChip} onPress={() => router.push('/status-editor')}>
           <ThemedText style={styles.statusText}>
-            {status ? `今日:${status}` : '＋ 设置今日状态'}
+            {status ? `今日：${status}` : '今日：'}
           </ThemedText>
         </Pressable>
 
@@ -115,81 +133,166 @@ function DiaryList() {
           data={rows}
           keyExtractor={(row) => row.id}
           refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} />}
-          contentContainerStyle={rows.length === 0 && styles.emptyContainer}
+          contentContainerStyle={[
+            styles.listContent,
+            rows.length === 0 && styles.emptyContainer,
+            { paddingBottom: insets.bottom + 108 },
+          ]}
           ListEmptyComponent={
             !loading ? (
               <ThemedText style={styles.emptyText}>
-                还没有日记。写下的每一篇都会成为化身的训练素材。
+                还没有日记。写下的每一篇，都会成为化身更像你的材料。
               </ThemedText>
             ) : null
           }
-          renderItem={({ item: row }) => {
-            const label =
-              row.kind === 'pending' ? '待同步' : VISIBILITY_LABEL[row.item.visibility];
-            const card = (
-              <Pressable onLongPress={() => confirmDelete(row)} style={styles.card}>
-                <View style={styles.cardTop}>
-                  <ThemedText style={styles.cardDate}>
-                    {formatDate(row.item.created_at)}
-                  </ThemedText>
-                  {label && (
-                    <ThemedText
-                      style={[styles.badge, row.kind === 'pending' && styles.badgePending]}>
-                      {label}
-                    </ThemedText>
-                  )}
-                </View>
-                <ThemedText numberOfLines={4}>{row.item.content}</ThemedText>
-              </Pressable>
-            );
-            // 右滑(露出左侧按钮)切换可见性,仅已同步日记;左滑删除
-            const renderLeft =
-              row.kind === 'entry'
-                ? (_p: unknown, _d: unknown, swipeable: SwipeableMethods) => (
-                    <Pressable
-                      style={[styles.action, styles.actionVisibility]}
-                      onPress={() => {
-                        swipeable.close();
-                        cycleVisibility(row.id).catch(() => {});
-                      }}>
-                      <Text style={styles.actionText}>
-                        {row.item.visibility === 'private' ? '设为公开' : '设为仅自己'}
-                      </Text>
-                    </Pressable>
-                  )
-                : undefined;
-            return (
-              <Swipeable
-                friction={2}
-                leftThreshold={60}
-                rightThreshold={60}
-                renderLeftActions={renderLeft}
-                renderRightActions={(_p: unknown, _d: unknown, swipeable: SwipeableMethods) => (
-                  <Pressable
-                    style={[styles.action, styles.actionDelete]}
-                    onPress={() => {
-                      swipeable.close();
-                      confirmDelete(row);
-                    }}>
-                    <Text style={styles.actionText}>删除</Text>
-                  </Pressable>
-                )}>
-                {card}
-              </Swipeable>
-            );
-          }}
+          renderItem={({ item }) => (
+            <DiaryRow
+              row={item}
+              onDelete={() => confirmDelete(item)}
+              onVisibility={(visibility) => setVisibility(item.id, visibility).catch(() => {})}
+            />
+          )}
         />
 
         <Pressable
-          style={[styles.fab, { backgroundColor: Colors[colorScheme].tint }]}
+          style={[
+            styles.fab,
+            { backgroundColor: colorScheme === 'dark' ? '#f4f5f8' : '#ffffff' },
+          ]}
           onPress={() => router.push('/diary-editor')}>
-          <Text
-            style={[styles.fabText, { color: colorScheme === 'dark' ? '#151718' : '#fff' }]}>
-            ＋
-          </Text>
+          <Text style={styles.fabText}>+</Text>
         </Pressable>
       </View>
     </ScreenBackground>
+  );
+}
+
+function DiaryRow({
+  row,
+  onDelete,
+  onVisibility,
+}: {
+  row: Row;
+  onDelete: () => void;
+  onVisibility: (visibility: DiaryVisibility) => void;
+}) {
+  const colorScheme = useColorScheme() ?? 'light';
+  const x = useSharedValue(0);
+  const y = useSharedValue(0);
+  const startX = useSharedValue(0);
+
+  const close = useCallback(() => {
+    x.value = withSpring(0, { damping: 18, stiffness: 220 });
+    y.value = withSpring(0, { damping: 18, stiffness: 220 });
+  }, [x, y]);
+
+  const openDelete = useCallback(() => {
+    x.value = withSpring(DELETE_X, { damping: 18, stiffness: 220 });
+    y.value = withSpring(0, { damping: 18, stiffness: 220 });
+  }, [x, y]);
+
+  const gesture = Gesture.Pan()
+    // 只在横向拖动时激活,纵向让给列表滚动
+    .activeOffsetX([-12, 12])
+    .failOffsetY([-14, 14])
+    .onBegin(() => {
+      startX.value = x.value;
+    })
+    .onUpdate((event) => {
+      x.value = Math.max(Math.min(startX.value + event.translationX, OPEN_X + 18), DELETE_X - 18);
+      y.value = Math.max(Math.min(event.translationY, 18), -18);
+    })
+    .onEnd(() => {
+      if (x.value > COMMIT_THRESHOLD) {
+        x.value = withSpring(OPEN_X, { damping: 18, stiffness: 220 });
+      } else if (x.value < -COMMIT_THRESHOLD) {
+        runOnJS(openDelete)();
+      } else {
+        x.value = withSpring(0, { damping: 18, stiffness: 220 });
+      }
+      y.value = withSpring(0, { damping: 18, stiffness: 220 });
+    });
+
+  const cardStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: x.value }, { translateY: y.value }],
+  }));
+
+  const visibilityStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(x.value, [18, COMMIT_THRESHOLD], [0, 1], Extrapolation.CLAMP),
+    transform: [{ translateX: interpolate(x.value, [0, OPEN_X], [-22, 0], Extrapolation.CLAMP) }],
+  }));
+
+  const deleteStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(-x.value, [18, COMMIT_THRESHOLD], [0, 1], Extrapolation.CLAMP),
+    transform: [{ translateX: interpolate(x.value, [DELETE_X, 0], [0, 22], Extrapolation.CLAMP) }],
+  }));
+
+  const visibility = row.item.visibility as DiaryVisibility;
+  const label = row.kind === 'pending' ? '待同步' : VISIBILITY_LABEL[visibility];
+
+  return (
+    <View style={styles.rowShell}>
+      <Animated.View
+        pointerEvents="box-none"
+        style={[styles.actionLayer, styles.visibilityLayer, visibilityStyle]}>
+        <View style={styles.visibilityPanel}>
+          {VISIBILITY_OPTIONS.map((option) => {
+            const active = visibility === option.key;
+            return (
+              <GHPressable
+                key={option.key}
+                style={[styles.visibilityPill, active && styles.visibilityPillActive]}
+                onPress={() => {
+                  onVisibility(option.key);
+                  close();
+                }}>
+                <Text style={[styles.visibilityPillText, active && styles.visibilityPillTextActive]}>
+                  {option.label}
+                </Text>
+              </GHPressable>
+            );
+          })}
+        </View>
+      </Animated.View>
+
+      <Animated.View
+        pointerEvents="box-none"
+        style={[styles.actionLayer, styles.deleteLayer, deleteStyle]}>
+        <GHPressable
+          style={styles.deleteButton}
+          onPress={() => {
+            close();
+            onDelete();
+          }}>
+          <Text style={styles.deleteText}>删除</Text>
+        </GHPressable>
+      </Animated.View>
+
+      <GestureDetector gesture={gesture}>
+        <Animated.View style={cardStyle}>
+          <Pressable onLongPress={onDelete} style={styles.card}>
+            <View style={styles.cardTop}>
+              <ThemedText style={styles.cardDate}>{formatDate(row.item.created_at)}</ThemedText>
+              <ThemedText
+                style={[
+                  styles.badge,
+                  row.kind === 'pending' && styles.badgePending,
+                  visibility === 'public' && styles.badgePublic,
+                  visibility === 'restricted' && styles.badgeRestricted,
+                  visibility === 'private' && styles.badgePrivate,
+                ]}>
+                {label}
+              </ThemedText>
+            </View>
+            <ThemedText
+              numberOfLines={5}
+              style={[styles.cardContent, { color: Colors[colorScheme].text }]}>
+              {row.item.content}
+            </ThemedText>
+          </Pressable>
+        </Animated.View>
+      </GestureDetector>
+    </View>
   );
 }
 
@@ -199,62 +302,112 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingHorizontal: 24,
+    paddingTop: 10,
+    paddingBottom: 12,
+  },
+  headerButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   statusChip: {
     alignSelf: 'flex-start',
-    marginHorizontal: 20,
-    marginBottom: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 14,
-    backgroundColor: 'rgba(127,127,127,0.1)',
+    marginHorizontal: 24,
+    marginBottom: 18,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: 'rgba(127,127,127,0.13)',
   },
-  statusText: { fontSize: 13, opacity: 0.8 },
-  error: { color: '#c60', paddingHorizontal: 20, paddingBottom: 8, fontSize: 12 },
+  statusText: { fontSize: 20, fontWeight: '600', opacity: 0.78 },
+  error: { color: '#d47a2d', paddingHorizontal: 24, paddingBottom: 8, fontSize: 12 },
+  listContent: { paddingTop: 8 },
   emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  emptyText: { opacity: 0.5, paddingHorizontal: 40, textAlign: 'center' },
+  emptyText: { opacity: 0.55, paddingHorizontal: 42, textAlign: 'center', lineHeight: 22 },
+  rowShell: {
+    marginHorizontal: 20,
+    marginVertical: 7,
+    minHeight: 112,
+    justifyContent: 'center',
+  },
+  actionLayer: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+  },
+  visibilityLayer: { alignItems: 'flex-start' },
+  deleteLayer: { alignItems: 'flex-end' },
+  visibilityPanel: {
+    width: 122,
+    gap: 6,
+    padding: 8,
+    borderRadius: 18,
+    backgroundColor: 'rgba(89, 139, 180, 0.26)',
+  },
+  visibilityPill: {
+    minHeight: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+  },
+  visibilityPillActive: { backgroundColor: '#f4f7fb' },
+  visibilityPillText: { color: '#f4f7fb', fontSize: 12, fontWeight: '700' },
+  visibilityPillTextActive: { color: '#21364d' },
+  deleteButton: {
+    width: 88,
+    minHeight: 86,
+    borderRadius: 18,
+    backgroundColor: 'rgba(202, 69, 67, 0.92)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  deleteText: { color: '#fff', fontSize: 15, fontWeight: '700' },
   card: {
-    marginHorizontal: 16,
-    marginVertical: 6,
-    padding: 14,
-    borderRadius: 12,
-    backgroundColor: 'rgba(127,127,127,0.08)',
+    minHeight: 104,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    borderRadius: 18,
+    backgroundColor: 'rgba(127,127,127,0.10)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.08)',
   },
   cardTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
+    gap: 12,
+    marginBottom: 10,
   },
-  cardDate: { fontSize: 12, opacity: 0.5 },
-  action: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: 88,
-    marginVertical: 6,
-    borderRadius: 12,
+  cardDate: { fontSize: 14, opacity: 0.5 },
+  cardContent: { fontSize: 19, lineHeight: 27 },
+  badge: {
+    overflow: 'hidden',
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 11,
+    fontSize: 12,
+    fontWeight: '700',
   },
-  actionVisibility: { backgroundColor: '#5f8fbf', marginLeft: 16 },
-  actionDelete: { backgroundColor: '#c0392b', marginRight: 16 },
-  actionText: { color: '#fff', fontSize: 13, fontWeight: '600' },
-  badge: { fontSize: 11, opacity: 0.6 },
-  badgePending: { color: '#c60', opacity: 1 },
+  badgePublic: { color: '#6fc6a5', backgroundColor: 'rgba(111,198,165,0.12)' },
+  badgeRestricted: { color: '#78aee5', backgroundColor: 'rgba(120,174,229,0.15)' },
+  badgePrivate: { color: '#a9a9b8', backgroundColor: 'rgba(169,169,184,0.14)' },
+  badgePending: { color: '#d89b3d', backgroundColor: 'rgba(216,155,61,0.15)' },
   fab: {
     position: 'absolute',
-    right: 24,
-    bottom: 32,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    right: 28,
+    bottom: 34,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 4,
+    elevation: 6,
     shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.24,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
   },
-  fabText: { fontSize: 28, lineHeight: 32 },
+  fabText: { color: '#0b0c12', fontSize: 42, lineHeight: 48, fontWeight: '300' },
 });
