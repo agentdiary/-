@@ -17,6 +17,7 @@ from .. import llm
 from ..auth import get_current_user
 from ..celebrities import CELEBRITY_PERSONAS
 from ..db import get_session
+from ..ratelimit import check_rate_limit
 from ..models import ChatMessage, DialoguePair, DiaryAllowedUser, DiaryEntry, PersonaCard, User
 from .users import current_status
 
@@ -187,6 +188,8 @@ def chat(
     me: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> AvatarReply:
+    # 每用户 30 条/小时:本地推理一条 10~30 秒,正常人到不了这个频率
+    check_rate_limit(f"chat:{me.id}", max_calls=30, window_seconds=3600)
     owner = _resolve_owner(body.target_user_id, me, session)
     cards = _retrieve_cards(session, owner, me)
     system = _build_system(owner, me, cards, session)

@@ -5,6 +5,7 @@ from sqlmodel import Session, select
 from ..auth import get_current_user
 from ..db import get_session
 from ..distill.pipeline import run_pipeline_for_diary
+from ..ratelimit import check_rate_limit
 from ..models import DialoguePair, DiaryAllowedUser, DiaryEntry, PersonaCard, User
 
 router = APIRouter(prefix="/diaries", tags=["diaries"])
@@ -38,6 +39,8 @@ def create_diary(
     me: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> DiaryEntry:
+    # 每篇日记都会触发多次 LLM 蒸馏,限 20 篇/天防滥用
+    check_rate_limit(f"diary:{me.id}", max_calls=20, window_seconds=86400)
     content = body.content.strip()
     if not content:
         raise HTTPException(status_code=422, detail="日记内容不能为空")

@@ -63,6 +63,8 @@ export const api = {
       body: JSON.stringify({ username, password }),
     }),
 
+  logout: () => request<{ ok: boolean }>('/auth/logout', { method: 'POST' }),
+
   listUsers: () => request<UserSummary[]>('/users'),
 
   listDiaries: () => request<DiaryEntry[]>('/diaries'),

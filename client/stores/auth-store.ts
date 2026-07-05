@@ -57,6 +57,8 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   logout: async () => {
+    // 尽力吊销服务端 token;离线时静默跳过,不阻塞本地登出
+    await api.logout().catch(() => {});
     setAuthToken(null);
     await SecureStore.deleteItemAsync(TOKEN_KEY);
     await SecureStore.deleteItemAsync(USERNAME_KEY);
