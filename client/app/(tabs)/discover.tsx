@@ -46,7 +46,9 @@ function applyOrder(users: UserSummary[], order: string[]): UserSummary[] {
 function UserAvatar({ username }: { username: string }) {
   const portrait = CELEBRITY_PORTRAITS[username];
   if (portrait) {
-    return <Image source={portrait} style={styles.avatar} />;
+    // fadeDuration=0:安卓 Image 默认 300ms 淡入,cell 因拖拽结束重新挂载时
+    // 会重新触发这个淡入,看起来像"刷新了一帧"
+    return <Image source={portrait} style={styles.avatar} fadeDuration={0} />;
   }
   return (
     <View style={[styles.avatar, { backgroundColor: avatarColor(username) }]}>
@@ -103,6 +105,9 @@ export default function DiscoverScreen() {
         onDragEnd={onDragEnd}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} />}
         containerStyle={styles.listContainer}
+        // 安卓拖拽结束后,离屏 cell 常被重新挂载(该库的已知行为);
+        // 关掉视图裁剪回收可以避免这次重新挂载,从根上消掉"刷新感"的那一帧
+        removeClippedSubviews={false}
         contentContainerStyle={users.length === 0 ? styles.emptyContainer : undefined}
         ListEmptyComponent={
           !loading ? (
