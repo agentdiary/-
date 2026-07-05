@@ -21,7 +21,11 @@ interface DiaryState {
     visibility: DiaryVisibility,
     allowedUserIds: string[],
   ) => Promise<void>;
-  setVisibility: (id: string, visibility: DiaryVisibility) => Promise<void>;
+  setVisibility: (
+    id: string,
+    visibility: DiaryVisibility,
+    allowedUserIds?: string[],
+  ) => Promise<void>;
   cycleVisibility: (id: string) => Promise<void>;
   remove: (id: string) => Promise<void>;
 }
@@ -83,14 +87,15 @@ export const useDiaryStore = create<DiaryState>((set, get) => ({
     }
   },
 
-  setVisibility: async (id, visibility) => {
+  setVisibility: async (id, visibility, allowedUserIds) => {
     if (id.startsWith('local-')) {
       const queue = get().pending.map((p) =>
         p.local_id === id
           ? {
               ...p,
               visibility,
-              allowed_user_ids: visibility === 'restricted' ? p.allowed_user_ids : [],
+              allowed_user_ids:
+                visibility === 'restricted' ? (allowedUserIds ?? p.allowed_user_ids) : [],
             }
           : p,
       );
@@ -99,7 +104,7 @@ export const useDiaryStore = create<DiaryState>((set, get) => ({
       return;
     }
 
-    const updated = await api.setDiaryVisibility(id, visibility);
+    const updated = await api.setDiaryVisibility(id, visibility, allowedUserIds);
     const entries = get().entries.map((e) => (e.id === id ? updated : e));
     await saveCache(entries);
     set({ entries });

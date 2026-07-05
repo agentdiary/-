@@ -89,9 +89,8 @@ export function AgentChat({
     <KeyboardAvoidingView
       style={styles.flex}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      // 带导航头的页面(如访客聊天)两个平台都需要 header 高度补偿:
-      // KAV 的 frame 是相对父级测量的,而键盘坐标是全屏绝对值,差值正是 header 高
-      keyboardVerticalOffset={keyboardOffset ?? 0}>
+      // iOS(padding)需要 header 高度补偿;Android(height)自身按窗口计算,补偿会过量
+      keyboardVerticalOffset={Platform.OS === 'ios' ? (keyboardOffset ?? 0) : 0}>
       <FlatList
         inverted={messages.length > 0}
         data={messages}

@@ -66,6 +66,8 @@ def _owned_diary(diary_id: str, me: User, session: Session) -> DiaryEntry:
 
 class VisibilityUpdate(BaseModel):
     visibility: str
+    # 传了就整体替换白名单;不传则保持原样
+    allowed_user_ids: list[str] | None = None
 
 
 @router.patch("/{diary_id}")
@@ -79,10 +81,34 @@ def update_visibility(
         raise HTTPException(status_code=422, detail="可见性取值不合法")
     diary = _owned_diary(diary_id, me, session)
     diary.visibility = body.visibility
+    if body.allowed_user_ids is not None:
+        for row in session.exec(
+            select(DiaryAllowedUser).where(DiaryAllowedUser.diary_id == diary.id)
+        ):
+            session.delete(row)
+        if body.visibility == "restricted":
+            for uid in set(body.allowed_user_ids):
+                session.add(DiaryAllowedUser(diary_id=diary.id, user_id=uid))
     session.add(diary)
     session.commit()
     session.refresh(diary)
     return diary
+
+
+@router.get("/{diary_id}/allowed")
+def get_allowed_users(
+    diary_id: str,
+    me: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> dict:
+    diary = _owned_diary(diary_id, me, session)
+    ids = [
+        row.user_id
+        for row in session.exec(
+            select(DiaryAllowedUser).where(DiaryAllowedUser.diary_id == diary.id)
+        )
+    ]
+    return {"allowed_user_ids": ids}
 
 
 @router.post("/{diary_id}/distill")

@@ -149,7 +149,18 @@ function DiaryList() {
             <DiaryRow
               row={item}
               onDelete={() => confirmDelete(item)}
-              onVisibility={(visibility) => setVisibility(item.id, visibility).catch(() => {})}
+              onVisibility={(visibility) => {
+                // 「指定」需要选人:已同步的日记跳白名单选择页;
+                // 未同步的本地日记没有服务器 id,先仅切换档位
+                if (visibility === 'restricted' && item.kind === 'entry') {
+                  router.push({
+                    pathname: '/visibility-picker',
+                    params: { diaryId: item.id },
+                  });
+                  return;
+                }
+                setVisibility(item.id, visibility).catch(() => {});
+              }}
             />
           )}
         />

@@ -46,6 +46,10 @@ export default function RootLayout() {
           name="status-editor"
           options={{ presentation: 'modal', title: '今日状态' }}
         />
+        <Stack.Screen
+          name="visibility-picker"
+          options={{ presentation: 'modal', title: '指定可见的人' }}
+        />
         <Stack.Screen name="visit/[userId]" options={{ title: '' }} />
       </Stack>
       <StatusBar style="auto" />
