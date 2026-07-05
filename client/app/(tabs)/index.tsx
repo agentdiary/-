@@ -203,9 +203,7 @@ function DiaryRow({
   }, [x, y]);
 
   const gesture = Gesture.Pan()
-    // 只在横向拖动时激活,纵向让给列表滚动
-    .activeOffsetX([-12, 12])
-    .failOffsetY([-14, 14])
+    .minDistance(3)
     .onBegin(() => {
       startX.value = x.value;
     })
