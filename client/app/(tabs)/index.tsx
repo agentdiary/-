@@ -103,7 +103,8 @@ function DiaryList() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const colorScheme = useColorScheme() ?? 'light';
-  const { entries, pending, loading, error, refresh, remove, setVisibility } = useDiaryStore();
+  const { entries, pending, loading, error, refresh, remove, setVisibility, setLocked } =
+    useDiaryStore();
   const diaryBg = useSettingsStore((s) => s.diaryBg);
   const [status, setStatus] = useState<string | null>(null);
   const [showCalendar, setShowCalendar] = useState(false);
@@ -112,6 +113,7 @@ function DiaryList() {
   const lockPattern = useSettingsStore((s) => s.lockPattern);
   const [lockGate, setLockGate] = useState<(() => void) | null>(null);
   const [lockError, setLockError] = useState(false);
+  const [unlockedDiaryIds, setUnlockedDiaryIds] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
     refresh();
@@ -213,25 +215,70 @@ function DiaryList() {
           renderItem={({ item }) => (
             <DiaryRow
               row={item}
+              unlocked={item.kind === 'entry' && unlockedDiaryIds.has(item.id)}
               onDelete={() => confirmDelete(item)}
               onPress={() => {
                 if (item.kind !== 'entry') return;
-                const open = () => {
-                  if (editRemainingMs(item.item.created_at) > 0) {
-                    router.push({
-                      pathname: '/diary-editor',
-                      params: { diaryId: item.id, initialContent: item.item.content },
+                if (item.item.locked) {
+                  if (lockPattern && !unlockedDiaryIds.has(item.id)) {
+                    setLockError(false);
+                    setLockGate(() => () => {
+                      setUnlockedDiaryIds((prev) => new Set(prev).add(item.id));
                     });
-                  } else {
-                    Alert.alert('日记已定格', '超过 24 小时的日记不可再修改,以保证它的真实性。');
                   }
+                  return;
+                }
+                const open = () => {
+                  router.push({
+                    pathname: '/diary-editor',
+                    params: {
+                      diaryId: item.id,
+                      initialContent: item.item.content,
+                      createdAt: item.item.created_at,
+                    },
+                  });
                 };
-                // 「仅自己」的日记在开启手势锁后需先验证图案
-                if (item.item.visibility === 'private' && lockPattern) {
-                  setLockError(false);
-                  setLockGate(() => open);
+                open();
+              }}
+              onLock={() => {
+                if (item.kind !== 'entry') return;
+                if (!item.item.locked) {
+                  if (!lockPattern) {
+                    Alert.alert('先设置解锁图案', '加锁前需要先设置一个手势图案。', [
+                      { text: '取消', style: 'cancel' },
+                      {
+                        text: '去设置',
+                        onPress: () =>
+                          router.push({ pathname: '/pattern-setup', params: { mode: 'set' } }),
+                      },
+                    ]);
+                    return;
+                  }
+                  setLocked(item.id, true)
+                    .then(() => {
+                      setUnlockedDiaryIds((prev) => {
+                        const next = new Set(prev);
+                        next.delete(item.id);
+                        return next;
+                      });
+                      Alert.alert('已加锁', '之后打开这篇日记需要先绘制手势图案。');
+                    })
+                    .catch(() => Alert.alert('加锁失败', '请稍后再试。'));
                 } else {
-                  open();
+                  // 解锁需要先验证图案,否则锁形同虚设
+                  setLockError(false);
+                  setLockGate(() => () => {
+                    setLocked(item.id, false)
+                      .then(() => {
+                        setUnlockedDiaryIds((prev) => {
+                          const next = new Set(prev);
+                          next.delete(item.id);
+                          return next;
+                        });
+                        Alert.alert('已取消加锁');
+                      })
+                      .catch(() => Alert.alert('解锁失败', '请稍后再试。'));
+                  });
                 }
               }}
               onVisibility={(visibility) => {
@@ -292,13 +339,17 @@ function DiaryList() {
 
 function DiaryRow({
   row,
+  unlocked,
   onDelete,
   onPress,
+  onLock,
   onVisibility,
 }: {
   row: Row;
+  unlocked: boolean;
   onDelete: () => void;
   onPress: () => void;
+  onLock: () => void;
   onVisibility: (visibility: DiaryVisibility) => void;
 }) {
   const colorScheme = useColorScheme() ?? 'light';
@@ -353,6 +404,8 @@ function DiaryRow({
 
   const visibility = row.item.visibility as DiaryVisibility;
   const label = row.kind === 'pending' ? '待同步' : VISIBILITY_LABEL[visibility];
+  const isLocked = row.kind === 'entry' && row.item.locked;
+  const shouldHideContent = isLocked && !unlocked;
   // 沙漏:24 小时修改窗口的剩余时间;窗口关闭后不显示(日记已定格)
   const remaining = row.kind === 'entry' ? editRemainingMs(row.item.created_at) : 0;
 
@@ -396,7 +449,13 @@ function DiaryRow({
 
       <GestureDetector gesture={gesture}>
         <Animated.View style={cardStyle}>
-          <Pressable onPress={onPress} onLongPress={onDelete} style={styles.card}>
+          <Pressable
+            onPress={onPress}
+            onLongPress={() => {
+              close();
+              onLock();
+            }}
+            style={styles.card}>
             <View style={styles.cardTop}>
               <View style={styles.cardTopLeft}>
                 <ThemedText style={styles.cardDate}>{formatDate(row.item.created_at)}</ThemedText>
@@ -404,22 +463,42 @@ function DiaryRow({
                   <ThemedText style={styles.editWindow}>⏳{formatRemaining(remaining)}</ThemedText>
                 )}
               </View>
-              <ThemedText
-                style={[
-                  styles.badge,
-                  row.kind === 'pending' && styles.badgePending,
-                  visibility === 'public' && styles.badgePublic,
-                  visibility === 'restricted' && styles.badgeRestricted,
-                  visibility === 'private' && styles.badgePrivate,
-                ]}>
-                {label}
-              </ThemedText>
+              <View style={styles.cardTopRight}>
+                {isLocked && (
+                  <GHPressable
+                    style={styles.lockButton}
+                    onPress={() => {
+                      onLock();
+                    }}>
+                    <IconSymbol size={15} name="lock.fill" color={Colors[colorScheme].icon} />
+                  </GHPressable>
+                )}
+                <ThemedText
+                  style={[
+                    styles.badge,
+                    row.kind === 'pending' && styles.badgePending,
+                    visibility === 'public' && styles.badgePublic,
+                    visibility === 'restricted' && styles.badgeRestricted,
+                    visibility === 'private' && styles.badgePrivate,
+                  ]}>
+                  {label}
+                </ThemedText>
+              </View>
             </View>
-            <ThemedText
-              numberOfLines={5}
-              style={[styles.cardContent, { color: Colors[colorScheme].text }]}>
-              {row.item.content}
-            </ThemedText>
+            {shouldHideContent ? (
+              <ThemedText style={styles.lockedPreview}>🔒 已加锁的日记,点按解锁查看</ThemedText>
+            ) : (
+              <View style={styles.paperBody}>
+                <View style={[styles.paperLine, styles.paperLineOne]} />
+                <View style={[styles.paperLine, styles.paperLineTwo]} />
+                <View style={[styles.paperLine, styles.paperLineThree]} />
+                <ThemedText
+                  numberOfLines={5}
+                  style={[styles.cardContent, { color: Colors[colorScheme].text }]}>
+                  {row.item.content}
+                </ThemedText>
+              </View>
+            )}
           </Pressable>
         </Animated.View>
       </GestureDetector>
@@ -511,9 +590,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 16,
     borderRadius: 18,
-    backgroundColor: 'rgba(127,127,127,0.10)',
+    backgroundColor: 'rgba(255, 252, 243, 0.16)',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: 'rgba(255, 250, 235, 0.20)',
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 1,
   },
   cardTop: {
     flexDirection: 'row',
@@ -524,8 +608,34 @@ const styles = StyleSheet.create({
   },
   cardDate: { fontSize: 14, opacity: 0.5 },
   cardTopLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  cardTopRight: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 0 },
   editWindow: { fontSize: 12, opacity: 0.55 },
-  cardContent: { fontSize: 19, lineHeight: 27 },
+  paperBody: {
+    position: 'relative',
+    overflow: 'hidden',
+    borderRadius: 10,
+    paddingTop: 2,
+  },
+  paperLine: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(127, 127, 127, 0.11)',
+  },
+  paperLineOne: { top: 29 },
+  paperLineTwo: { top: 56 },
+  paperLineThree: { top: 83 },
+  cardContent: { fontSize: 19, lineHeight: 27, textShadowColor: 'rgba(255,255,255,0.10)', textShadowRadius: 0.5 },
+  lockedPreview: { fontSize: 15, opacity: 0.5, paddingVertical: 8 },
+  lockButton: {
+    minHeight: 25,
+    paddingHorizontal: 9,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 11,
+    backgroundColor: 'rgba(127,127,127,0.13)',
+  },
   badge: {
     overflow: 'hidden',
     paddingHorizontal: 9,

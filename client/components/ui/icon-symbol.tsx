@@ -23,6 +23,7 @@ const MAPPING = {
   'person.2.fill': 'people',
   'paintbrush.fill': 'brush',
   calendar: 'calendar-today',
+  'lock.fill': 'lock',
 } as IconMapping;
 
 /**

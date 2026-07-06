@@ -79,9 +79,12 @@ def _owned_diary(diary_id: str, me: User, session: Session) -> DiaryEntry:
 
 
 class VisibilityUpdate(BaseModel):
-    visibility: str
+    # 不传 = 不改可见性
+    visibility: str | None = None
     # 传了就整体替换白名单;不传则保持原样
     allowed_user_ids: list[str] | None = None
+    # 手势锁标记(独立于可见性)
+    locked: bool | None = None
 
 
 @router.patch("/{diary_id}")
@@ -91,18 +94,21 @@ def update_visibility(
     me: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> DiaryEntry:
-    if body.visibility not in VISIBILITIES:
-        raise HTTPException(status_code=422, detail="可见性取值不合法")
     diary = _owned_diary(diary_id, me, session)
-    diary.visibility = body.visibility
-    if body.allowed_user_ids is not None:
-        for row in session.exec(
-            select(DiaryAllowedUser).where(DiaryAllowedUser.diary_id == diary.id)
-        ):
-            session.delete(row)
-        if body.visibility == "restricted":
-            for uid in set(body.allowed_user_ids):
-                session.add(DiaryAllowedUser(diary_id=diary.id, user_id=uid))
+    if body.visibility is not None:
+        if body.visibility not in VISIBILITIES:
+            raise HTTPException(status_code=422, detail="可见性取值不合法")
+        diary.visibility = body.visibility
+        if body.allowed_user_ids is not None:
+            for row in session.exec(
+                select(DiaryAllowedUser).where(DiaryAllowedUser.diary_id == diary.id)
+            ):
+                session.delete(row)
+            if body.visibility == "restricted":
+                for uid in set(body.allowed_user_ids):
+                    session.add(DiaryAllowedUser(diary_id=diary.id, user_id=uid))
+    if body.locked is not None:
+        diary.locked = body.locked
     session.add(diary)
     session.commit()
     session.refresh(diary)

@@ -26,6 +26,12 @@ const VISIBILITY_OPTIONS: { key: DiaryVisibility; label: string; hint: string }[
   { key: 'private', label: '仅自己', hint: '只用于你和自己化身的对话' },
 ];
 
+const EDIT_WINDOW_MS = 24 * 3600 * 1000;
+
+function parseUtc(iso: string) {
+  return new Date(iso.endsWith('Z') || iso.includes('+') ? iso : `${iso}Z`);
+}
+
 export default function DiaryEditorScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const tint = Colors[colorScheme].tint;
@@ -33,12 +39,15 @@ export default function DiaryEditorScreen() {
   const add = useDiaryStore((s) => s.add);
   const edit = useDiaryStore((s) => s.edit);
 
-  // 编辑模式:从日记卡片点入,带 diaryId 与原文;24h 窗口由后端强制校验
-  const { diaryId, initialContent } = useLocalSearchParams<{
+  // 编辑模式:从日记卡片点入,带 diaryId、原文与创建时间;24h 窗口在详情页提示,后端仍强制校验
+  const { diaryId, initialContent, createdAt } = useLocalSearchParams<{
     diaryId?: string;
     initialContent?: string;
+    createdAt?: string;
   }>();
   const isEditing = !!diaryId;
+  const canEdit =
+    !isEditing || !createdAt || parseUtc(createdAt).getTime() + EDIT_WINDOW_MS > Date.now();
 
   const [content, setContent] = useState(initialContent ?? '');
   const [visibility, setVisibility] = useState<DiaryVisibility>('public');
@@ -67,7 +76,7 @@ export default function DiaryEditorScreen() {
 
   const save = async () => {
     const text = content.trim();
-    if (!text) return;
+    if (!text || !canEdit) return;
     setSaving(true);
     try {
       if (isEditing && diaryId) {
@@ -86,21 +95,24 @@ export default function DiaryEditorScreen() {
 
   return (
     <KeyboardAvoidingView style={styles.flex} behavior="padding">
-      <Stack.Screen options={{ title: isEditing ? '修改日记' : '写日记' }} />
+      <Stack.Screen options={{ title: isEditing ? (canEdit ? '修改日记' : '日记详情') : '写日记' }} />
       <ThemedView style={styles.container}>
         {isEditing && (
           <ThemedText style={styles.hint}>
-            ⏳ 日记落笔 24 小时内可修改;修改后化身会重新学习这篇内容。
+            {canEdit
+              ? '⏳ 日记落笔 24 小时内可修改;修改后化身会重新学习这篇内容。'
+              : '这篇日记已超过 24 小时,内容已定格,不可再修改。'}
           </ThemedText>
         )}
         <TextInput
           style={[styles.input, { color: Colors[colorScheme].text }]}
           multiline
-          autoFocus
           placeholder="今天发生了什么?你怎么想?"
           placeholderTextColor="rgba(127,127,127,0.6)"
           value={content}
           onChangeText={setContent}
+          editable={canEdit}
+          autoFocus={canEdit}
         />
 
         {/* 编辑模式只改内容;可见性用日记卡片右滑调整 */}
@@ -141,19 +153,21 @@ export default function DiaryEditorScreen() {
           </ScrollView>
         )}
 
-        <Pressable
-          style={[
-            styles.saveButton,
-            { backgroundColor: tint, opacity: content.trim() ? 1 : 0.4 },
-          ]}
-          disabled={!content.trim() || saving}
-          onPress={save}>
-          {saving ? (
-            <ActivityIndicator color={onTint} />
-          ) : (
-            <Text style={[styles.saveText, { color: onTint }]}>保存</Text>
-          )}
-        </Pressable>
+        {canEdit && (
+          <Pressable
+            style={[
+              styles.saveButton,
+              { backgroundColor: tint, opacity: content.trim() ? 1 : 0.4 },
+            ]}
+            disabled={!content.trim() || saving}
+            onPress={save}>
+            {saving ? (
+              <ActivityIndicator color={onTint} />
+            ) : (
+              <Text style={[styles.saveText, { color: onTint }]}>保存</Text>
+            )}
+          </Pressable>
+        )}
       </ThemedView>
     </KeyboardAvoidingView>
   );

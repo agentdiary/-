@@ -100,6 +100,12 @@ export const api = {
       }),
     }),
 
+  setDiaryLocked: (id: string, locked: boolean) =>
+    request<DiaryEntry>(`/diaries/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ locked }),
+    }),
+
   // 修改日记内容(仅限落笔 24 小时内,后端强制校验)
   updateDiary: (id: string, content: string) =>
     request<DiaryEntry>(`/diaries/${id}`, {

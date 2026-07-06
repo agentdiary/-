@@ -6,6 +6,7 @@ export interface DiaryEntry {
   id: string;
   content: string;
   visibility: DiaryVisibility;
+  locked: boolean; // 手势锁标记(图案仅存客户端本机)
   created_at: string; // ISO 8601
   updated_at: string;
 }

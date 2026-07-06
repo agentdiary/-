@@ -50,6 +50,9 @@ def _migrate(conn) -> None:
                 text("ALTER TABLE diaryentry ADD COLUMN visibility TEXT DEFAULT 'public'")
             )
             added.append("diaryentry.visibility")
+        if not _column_exists(conn, "diaryentry", "locked"):
+            conn.execute(text("ALTER TABLE diaryentry ADD COLUMN locked BOOLEAN DEFAULT 0"))
+            added.append("diaryentry.locked")
     if added:
         logger.warning("迁移新增列: %s", added)
 

@@ -30,6 +30,12 @@ export function PatternLock({
   const tint = Colors[scheme].tint;
   const [selected, setSelected] = useState<number[]>([]);
   const selRef = useRef<number[]>([]);
+  // PanResponder 只创建一次,会永久捕获首次渲染的闭包;
+  // 回调与 disabled 走 ref,保证多步骤流程(绘制→确认)拿到最新逻辑
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
+  const disabledRef = useRef(disabled);
+  disabledRef.current = disabled;
 
   const tryAdd = (x: number, y: number) => {
     for (let i = 0; i < 9; i++) {
@@ -45,8 +51,8 @@ export function PatternLock({
 
   const responder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => !disabled,
-      onMoveShouldSetPanResponder: () => !disabled,
+      onStartShouldSetPanResponder: () => !disabledRef.current,
+      onMoveShouldSetPanResponder: () => !disabledRef.current,
       onPanResponderGrant: (e) => {
         selRef.current = [];
         setSelected([]);
@@ -60,7 +66,7 @@ export function PatternLock({
         selRef.current = [];
         setSelected([]);
         if (pattern.length >= MIN_DOTS) {
-          onComplete(pattern.join('-'));
+          onCompleteRef.current(pattern.join('-'));
         }
       },
     }),

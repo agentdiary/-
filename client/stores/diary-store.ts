@@ -28,6 +28,7 @@ interface DiaryState {
   ) => Promise<void>;
   cycleVisibility: (id: string) => Promise<void>;
   edit: (id: string, content: string) => Promise<void>;
+  setLocked: (id: string, locked: boolean) => Promise<void>;
   remove: (id: string) => Promise<void>;
 }
 
@@ -117,6 +118,14 @@ export const useDiaryStore = create<DiaryState>((set, get) => ({
     const order: DiaryVisibility[] = ['public', 'restricted', 'private'];
     const next = order[(order.indexOf(entry.visibility) + 1) % order.length];
     await get().setVisibility(id, next);
+  },
+
+  // 手势锁开关(独立于可见性)
+  setLocked: async (id: string, locked: boolean) => {
+    const updated = await api.setDiaryLocked(id, locked);
+    const entries = get().entries.map((e) => (e.id === id ? updated : e));
+    await saveCache(entries);
+    set({ entries });
   },
 
   // 修改日记内容(24h 窗口由后端强制校验);成功后替换本地条目

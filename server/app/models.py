@@ -45,6 +45,8 @@ class DiaryEntry(SQLModel, table=True):
     # 可见性分级:public=化身可对所有访客使用其衍生卡片;
     # restricted=仅 DiaryAllowedUser 中指定的访客;private=仅自己(自聊)
     visibility: str = Field(default="public")
+    # 手势锁标记:客户端据此隐藏预览并要求图案验证(图案本身仅存客户端本机)
+    locked: bool = Field(default=False)
     created_at: datetime = Field(default_factory=_now)
     updated_at: datetime = Field(default_factory=_now)
 
