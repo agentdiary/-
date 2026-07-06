@@ -40,15 +40,19 @@ def chat_messages(
     }
     if json_mode:
         payload["format"] = "json"
+    # trust_env=False:绝不让本机代理(HTTP_PROXY/xray 等)截走发往 localhost 的
+    # Ollama 请求——代理会拒绝或掐断 localhost 转发,表现为 503/10054
     try:
-        r = httpx.post(f"{OLLAMA_URL}/api/chat", json=payload, timeout=timeout)
-        r.raise_for_status()
+        with httpx.Client(trust_env=False, timeout=timeout) as client:
+            r = client.post(f"{OLLAMA_URL}/api/chat", json=payload)
+            r.raise_for_status()
     except httpx.HTTPStatusError:
         # 旧版 Ollama 不认识 think 字段时重试一次
         payload.pop("think", None)
         try:
-            r = httpx.post(f"{OLLAMA_URL}/api/chat", json=payload, timeout=timeout)
-            r.raise_for_status()
+            with httpx.Client(trust_env=False, timeout=timeout) as client:
+                r = client.post(f"{OLLAMA_URL}/api/chat", json=payload)
+                r.raise_for_status()
         except Exception as e:
             raise LLMError(f"Ollama 调用失败: {e}") from e
     except Exception as e:
