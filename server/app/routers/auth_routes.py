@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
-from ..auth import get_current_user, hash_password, issue_token, verify_password
+from ..auth import get_current_user, hash_password, issue_token, revoke_token, verify_password
 from ..db import get_session
 from ..models import User
+from ..ratelimit import check_rate_limit
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -37,11 +38,22 @@ def register(body: Credentials, session: Session = Depends(get_session)) -> Auth
 
 
 @router.post("/login")
-def login(body: Credentials, session: Session = Depends(get_session)) -> AuthResponse:
+def login(
+    body: Credentials, request: Request, session: Session = Depends(get_session)
+) -> AuthResponse:
+    # 按来源 IP 限暴力试密码:10 次/10 分钟
+    client_ip = request.client.host if request.client else "unknown"
+    check_rate_limit(f"login:{client_ip}", max_calls=10, window_seconds=600)
     user = session.exec(select(User).where(User.username == body.username.strip())).first()
     if user is None or not verify_password(body.password, user.password_hash):
         raise HTTPException(status_code=401, detail="用户名或密码错误")
     return AuthResponse(token=issue_token(session, user), user_id=user.id, username=user.username)
+
+
+@router.post("/logout")
+def logout(request: Request, session: Session = Depends(get_session)) -> dict:
+    revoke_token(request, session)
+    return {"ok": True}
 
 
 class UserInfo(BaseModel):

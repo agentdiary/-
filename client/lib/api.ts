@@ -6,6 +6,7 @@ import type {
   AvatarReply,
   ChatHistoryItem,
   DiaryEntry,
+  DiaryVisibility,
   UserSummary,
 } from './types';
 
@@ -62,15 +63,45 @@ export const api = {
       body: JSON.stringify({ username, password }),
     }),
 
+  logout: () => request<{ ok: boolean }>('/auth/logout', { method: 'POST' }),
+
   listUsers: () => request<UserSummary[]>('/users'),
 
   listDiaries: () => request<DiaryEntry[]>('/diaries'),
 
-  createDiary: (content: string) =>
+  createDiary: (
+    content: string,
+    visibility: DiaryVisibility = 'public',
+    allowedUserIds: string[] = [],
+  ) =>
     request<DiaryEntry>('/diaries', {
       method: 'POST',
-      body: JSON.stringify({ content }),
+      body: JSON.stringify({
+        content,
+        visibility,
+        allowed_user_ids: allowedUserIds,
+      }),
     }),
+
+  setStatus: (status: string | null) =>
+    request<{ status: string | null }>('/users/me/status', {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    }),
+
+  getMyStatus: () => request<{ status: string | null }>('/users/me/status'),
+
+  setDiaryVisibility: (id: string, visibility: DiaryVisibility, allowedUserIds?: string[]) =>
+    request<DiaryEntry>(`/diaries/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        visibility,
+        allowed_user_ids: allowedUserIds ?? null,
+      }),
+    }),
+
+  getDiaryAllowed: (id: string) =>
+    request<{ allowed_user_ids: string[] }>(`/diaries/${id}/allowed`),
 
   // 删除日记会在后端级联删除衍生的对话对与人格卡片(隐私红线)
   deleteDiary: (id: string) =>

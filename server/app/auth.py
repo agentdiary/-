@@ -6,6 +6,7 @@
 import hashlib
 import hmac
 import secrets
+from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends, HTTPException, Request
 from sqlmodel import Session
@@ -14,6 +15,8 @@ from .db import get_session
 from .models import AuthToken, User
 
 _PBKDF2_ITERATIONS = 120_000
+# token 有效期:超过后要求重新登录(上线加固,替代"永不过期")
+TOKEN_TTL = timedelta(days=30)
 
 
 def hash_password(password: str) -> str:
@@ -42,6 +45,13 @@ def issue_token(session: Session, user: User) -> str:
     return token.token
 
 
+def _token_expired(record: AuthToken) -> bool:
+    created = record.created_at
+    if created.tzinfo is None:  # SQLite 存 naive UTC
+        created = created.replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc) - created > TOKEN_TTL
+
+
 def get_current_user(request: Request, session: Session = Depends(get_session)) -> User:
     header = request.headers.get("Authorization", "")
     if not header.startswith("Bearer "):
@@ -49,7 +59,20 @@ def get_current_user(request: Request, session: Session = Depends(get_session)) 
     record = session.get(AuthToken, header.removeprefix("Bearer ").strip())
     if record is None:
         raise HTTPException(status_code=401, detail="登录已失效,请重新登录")
+    if _token_expired(record):
+        session.delete(record)
+        session.commit()
+        raise HTTPException(status_code=401, detail="登录已过期,请重新登录")
     user = session.get(User, record.user_id)
     if user is None:
         raise HTTPException(status_code=401, detail="用户不存在")
     return user
+
+
+def revoke_token(request: Request, session: Session) -> None:
+    """登出:吊销当前请求携带的 token。"""
+    header = request.headers.get("Authorization", "")
+    record = session.get(AuthToken, header.removeprefix("Bearer ").strip())
+    if record is not None:
+        session.delete(record)
+        session.commit()

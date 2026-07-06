@@ -1,12 +1,10 @@
-// 通用化身聊天组件:targetUserId 不传 = 和自己的化身;传 = 访问他人化身。
-// 历史与上下文全部由后端持久化和组装,组件只管展示与收发。
-
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
   Image,
   type ImageSourcePropType,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -15,6 +13,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
@@ -31,22 +30,38 @@ export function AgentChat({
   targetUserId,
   emptyHint,
   avatarImage,
+  keyboardOffset,
 }: {
   targetUserId?: string;
   emptyHint: string;
-  // 化身消息旁的小头像(名人肖像);不传则不显示
   avatarImage?: ImageSourcePropType;
+  keyboardOffset?: number;
 }) {
   const scheme = useColorScheme() ?? 'light';
+  const insets = useSafeAreaInsets();
   const tint = Colors[scheme].tint;
-  // 深色模式 tint 是白色,气泡/按钮上的文字要用深色才可见
   const onTint = scheme === 'dark' ? '#151718' : '#fff';
 
-  // 倒序存储(最新在前),配合 inverted FlatList
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Android + 带导航头的页面(传了 keyboardOffset):KAV 在 react-native-screens
+  // 的带头容器里计算不可靠(偏高/偏低反复),改为监听键盘高度手动垫底
+  const manualPad = Platform.OS === 'android' && keyboardOffset !== undefined;
+  const [kbHeight, setKbHeight] = useState(0);
+  useEffect(() => {
+    if (!manualPad) return;
+    const show = Keyboard.addListener('keyboardDidShow', (e) =>
+      setKbHeight(e.endCoordinates.height),
+    );
+    const hide = Keyboard.addListener('keyboardDidHide', () => setKbHeight(0));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, [manualPad]);
 
   const load = useCallback(async () => {
     try {
@@ -89,14 +104,17 @@ export function AgentChat({
 
   return (
     <KeyboardAvoidingView
-      style={styles.flex}
-      behavior="padding"
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
+      style={[
+        styles.flex,
+        manualPad && kbHeight > 0 && { paddingBottom: Math.max(0, kbHeight - insets.bottom) },
+      ]}
+      behavior={Platform.OS === 'ios' ? 'padding' : manualPad ? undefined : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? (keyboardOffset ?? 0) : 0}>
       <FlatList
-        // 空列表时不启用 inverted:各平台对空态组件的翻转行为不一致,会把提示文字翻转
         inverted={messages.length > 0}
         data={messages}
         keyExtractor={(m) => m.id}
+        keyboardShouldPersistTaps="handled"
         contentContainerStyle={[styles.list, messages.length === 0 && styles.listEmpty]}
         ListEmptyComponent={<ThemedText style={styles.empty}>{emptyHint}</ThemedText>}
         renderItem={({ item }) =>
@@ -120,16 +138,16 @@ export function AgentChat({
       {sending && (
         <View style={styles.typing}>
           <ActivityIndicator size="small" />
-          <ThemedText style={styles.typingText}>化身正在思考(约 10~30 秒)…</ThemedText>
+          <ThemedText style={styles.typingText}>化身正在思考，约 10~30 秒...</ThemedText>
         </View>
       )}
-      {error && <Text style={styles.error}>出错了:{error}</Text>}
+      {error && <Text style={styles.error}>出错了：{error}</Text>}
 
-      <View style={styles.inputRow}>
+      <View style={[styles.inputRow, { paddingBottom: Math.max(insets.bottom, 8) }]}>
         <TextInput
           style={[styles.input, { color: Colors[scheme].text }]}
-          placeholder="说点什么…"
-          placeholderTextColor="rgba(127,127,127,0.6)"
+          placeholder="说点什么..."
+          placeholderTextColor="rgba(127,127,127,0.62)"
           value={draft}
           onChangeText={setDraft}
           onSubmitEditing={submit}
@@ -158,19 +176,23 @@ const styles = StyleSheet.create({
     opacity: 0.5,
     textAlign: 'center',
     paddingHorizontal: 40,
+    fontSize: 18,
+    lineHeight: 28,
   },
   bubble: {
     maxWidth: '78%',
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    borderRadius: 18,
+    paddingHorizontal: 15,
+    paddingVertical: 11,
     marginVertical: 4,
   },
-  bubbleMe: { alignSelf: 'flex-end', borderBottomRightRadius: 4 },
+  bubbleMe: { alignSelf: 'flex-end', borderBottomRightRadius: 5 },
   bubbleAvatar: {
     alignSelf: 'flex-start',
-    borderBottomLeftRadius: 4,
-    backgroundColor: 'rgba(127,127,127,0.15)',
+    borderBottomLeftRadius: 5,
+    backgroundColor: 'rgba(127,127,127,0.12)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.08)',
   },
   avatarRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 6 },
   portrait: { width: 28, height: 28, borderRadius: 14, marginBottom: 6 },
@@ -183,25 +205,33 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   typingText: { fontSize: 13, opacity: 0.6 },
-  error: { color: '#c00', paddingHorizontal: 20, paddingVertical: 4 },
+  error: { color: '#c44', paddingHorizontal: 20, paddingVertical: 4 },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingTop: 8,
+    backgroundColor: 'rgba(10,10,14,0.02)',
   },
   input: {
     flex: 1,
+    minHeight: 46,
     borderWidth: 1,
     borderColor: 'rgba(127,127,127,0.3)',
-    borderRadius: 20,
-    paddingHorizontal: 14,
+    borderRadius: 23,
+    paddingHorizontal: 16,
     paddingVertical: 10,
     fontSize: 16,
-    // 略微填充,保证在图片背景上可读
     backgroundColor: 'rgba(127,127,127,0.08)',
   },
-  sendBtn: { borderRadius: 20, paddingHorizontal: 18, paddingVertical: 10 },
+  sendBtn: {
+    minWidth: 70,
+    minHeight: 46,
+    borderRadius: 23,
+    paddingHorizontal: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   sendText: { fontSize: 15, fontWeight: '600' },
 });

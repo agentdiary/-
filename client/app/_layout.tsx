@@ -2,6 +2,7 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -28,6 +29,7 @@ export default function RootLayout() {
   }
 
   return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -40,9 +42,18 @@ export default function RootLayout() {
           name="appearance"
           options={{ presentation: 'modal', title: '外观' }}
         />
+        <Stack.Screen
+          name="status-editor"
+          options={{ presentation: 'modal', title: '今日状态' }}
+        />
+        <Stack.Screen
+          name="visibility-picker"
+          options={{ presentation: 'modal', title: '指定可见的人' }}
+        />
         <Stack.Screen name="visit/[userId]" options={{ title: '' }} />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }

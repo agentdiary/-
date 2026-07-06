@@ -5,13 +5,19 @@ from sqlmodel import Session, select
 from ..auth import get_current_user
 from ..db import get_session
 from ..distill.pipeline import run_pipeline_for_diary
-from ..models import DialoguePair, DiaryEntry, PersonaCard, User
+from ..ratelimit import check_rate_limit
+from ..models import DialoguePair, DiaryAllowedUser, DiaryEntry, PersonaCard, User
 
 router = APIRouter(prefix="/diaries", tags=["diaries"])
+
+VISIBILITIES = {"public", "restricted", "private"}
 
 
 class DiaryCreate(BaseModel):
     content: str
+    # public=化身可对所有人透露 / restricted=仅指定用户 / private=仅自己
+    visibility: str = "public"
+    allowed_user_ids: list[str] = []
 
 
 @router.get("")
@@ -33,13 +39,21 @@ def create_diary(
     me: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> DiaryEntry:
+    # 每篇日记都会触发多次 LLM 蒸馏,限 20 篇/天防滥用
+    check_rate_limit(f"diary:{me.id}", max_calls=20, window_seconds=86400)
     content = body.content.strip()
     if not content:
         raise HTTPException(status_code=422, detail="日记内容不能为空")
-    diary = DiaryEntry(user_id=me.id, content=content)
+    if body.visibility not in VISIBILITIES:
+        raise HTTPException(status_code=422, detail="可见性取值不合法")
+    diary = DiaryEntry(user_id=me.id, content=content, visibility=body.visibility)
     session.add(diary)
     session.commit()
     session.refresh(diary)
+    if body.visibility == "restricted":
+        for uid in set(body.allowed_user_ids):
+            session.add(DiaryAllowedUser(diary_id=diary.id, user_id=uid))
+        session.commit()
     # 蒸馏在后台异步执行,不阻塞保存;本地推理一篇约需十几秒到一分钟
     background_tasks.add_task(run_pipeline_for_diary, diary.id)
     return diary
@@ -51,6 +65,53 @@ def _owned_diary(diary_id: str, me: User, session: Session) -> DiaryEntry:
         # 不区分「不存在」与「不是你的」,避免泄露他人日记 id 的存在性
         raise HTTPException(status_code=404, detail="日记不存在")
     return diary
+
+
+class VisibilityUpdate(BaseModel):
+    visibility: str
+    # 传了就整体替换白名单;不传则保持原样
+    allowed_user_ids: list[str] | None = None
+
+
+@router.patch("/{diary_id}")
+def update_visibility(
+    diary_id: str,
+    body: VisibilityUpdate,
+    me: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> DiaryEntry:
+    if body.visibility not in VISIBILITIES:
+        raise HTTPException(status_code=422, detail="可见性取值不合法")
+    diary = _owned_diary(diary_id, me, session)
+    diary.visibility = body.visibility
+    if body.allowed_user_ids is not None:
+        for row in session.exec(
+            select(DiaryAllowedUser).where(DiaryAllowedUser.diary_id == diary.id)
+        ):
+            session.delete(row)
+        if body.visibility == "restricted":
+            for uid in set(body.allowed_user_ids):
+                session.add(DiaryAllowedUser(diary_id=diary.id, user_id=uid))
+    session.add(diary)
+    session.commit()
+    session.refresh(diary)
+    return diary
+
+
+@router.get("/{diary_id}/allowed")
+def get_allowed_users(
+    diary_id: str,
+    me: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> dict:
+    diary = _owned_diary(diary_id, me, session)
+    ids = [
+        row.user_id
+        for row in session.exec(
+            select(DiaryAllowedUser).where(DiaryAllowedUser.diary_id == diary.id)
+        )
+    ]
+    return {"allowed_user_ids": ids}
 
 
 @router.post("/{diary_id}/distill")
@@ -83,6 +144,10 @@ def delete_diary(
         session.delete(pair)
     for card in session.exec(select(PersonaCard).where(PersonaCard.source_diary_id == diary.id)):
         session.delete(card)
+    for allow in session.exec(
+        select(DiaryAllowedUser).where(DiaryAllowedUser.diary_id == diary.id)
+    ):
+        session.delete(allow)
     session.delete(diary)
     session.commit()
     return {"deleted": diary.id}

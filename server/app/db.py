@@ -37,6 +37,19 @@ def _migrate(conn) -> None:
         if not _column_exists(conn, "user", "is_builtin"):
             conn.execute(text("ALTER TABLE user ADD COLUMN is_builtin BOOLEAN DEFAULT 0"))
             added.append("user.is_builtin")
+        for col, ddl in (
+            ("status_text", "ALTER TABLE user ADD COLUMN status_text TEXT"),
+            ("status_updated_at", "ALTER TABLE user ADD COLUMN status_updated_at TIMESTAMP"),
+        ):
+            if not _column_exists(conn, "user", col):
+                conn.execute(text(ddl))
+                added.append(f"user.{col}")
+    if conn.execute(text("SELECT name FROM sqlite_master WHERE name='diaryentry'")).fetchone():
+        if not _column_exists(conn, "diaryentry", "visibility"):
+            conn.execute(
+                text("ALTER TABLE diaryentry ADD COLUMN visibility TEXT DEFAULT 'public'")
+            )
+            added.append("diaryentry.visibility")
     if added:
         logger.warning("迁移新增列: %s", added)
 

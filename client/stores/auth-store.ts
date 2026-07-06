@@ -1,4 +1,4 @@
-import * as SecureStore from 'expo-secure-store';
+import { kvDelete, kvGet, kvSet } from '@/lib/kv';
 import { create } from 'zustand';
 
 import { api, setAuthToken } from '@/lib/api';
@@ -19,9 +19,9 @@ interface AuthState {
 }
 
 async function persist(token: string, username: string, userId: string) {
-  await SecureStore.setItemAsync(TOKEN_KEY, token);
-  await SecureStore.setItemAsync(USERNAME_KEY, username);
-  await SecureStore.setItemAsync(USER_ID_KEY, userId);
+  await kvSet(TOKEN_KEY, token);
+  await kvSet(USERNAME_KEY, username);
+  await kvSet(USER_ID_KEY, userId);
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -32,9 +32,9 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   hydrate: async () => {
     try {
-      const token = await SecureStore.getItemAsync(TOKEN_KEY);
-      const username = await SecureStore.getItemAsync(USERNAME_KEY);
-      const userId = await SecureStore.getItemAsync(USER_ID_KEY);
+      const token = await kvGet(TOKEN_KEY);
+      const username = await kvGet(USERNAME_KEY);
+      const userId = await kvGet(USER_ID_KEY);
       setAuthToken(token);
       set({ token, username, userId, hydrated: true });
     } catch {
@@ -57,10 +57,12 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   logout: async () => {
+    // 尽力吊销服务端 token;离线时静默跳过,不阻塞本地登出
+    await api.logout().catch(() => {});
     setAuthToken(null);
-    await SecureStore.deleteItemAsync(TOKEN_KEY);
-    await SecureStore.deleteItemAsync(USERNAME_KEY);
-    await SecureStore.deleteItemAsync(USER_ID_KEY);
+    await kvDelete(TOKEN_KEY);
+    await kvDelete(USERNAME_KEY);
+    await kvDelete(USER_ID_KEY);
     set({ token: null, username: null, userId: null });
   },
 }));
