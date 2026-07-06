@@ -24,16 +24,17 @@ export default function TabLayout() {
         // 系统手势条补偿,不加会把标签下半截压在手势条底下
         tabBarStyle: {
           position: 'absolute',
-          height: 58 + insets.bottom,
+          height: 62 + insets.bottom,
           paddingTop: 6,
-          paddingBottom: Math.max(insets.bottom, 8),
+          paddingBottom: Math.max(insets.bottom, 10),
           borderTopWidth: StyleSheet.hairlineWidth,
           borderTopColor: 'rgba(127,127,127,0.25)',
           backgroundColor: dark ? 'rgba(21,23,24,0.78)' : 'rgba(255,255,255,0.60)',
           elevation: 0,
         },
-        // 显式 lineHeight:安卓对小号粗体的默认行高偏紧,会裁掉字底几像素
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '600', lineHeight: 15 },
+        // 显式 lineHeight 且上调:安卓对小号粗体的默认行高偏紧,会裁掉字底
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '600', lineHeight: 17 },
+        tabBarItemStyle: { paddingVertical: 0 },
       }}>
       <Tabs.Screen
         name="index"

@@ -50,6 +50,10 @@ export default function RootLayout() {
           name="visibility-picker"
           options={{ presentation: 'modal', title: '指定可见的人' }}
         />
+        <Stack.Screen
+          name="pattern-setup"
+          options={{ presentation: 'modal', title: '手势锁' }}
+        />
         <Stack.Screen name="visit/[userId]" options={{ title: '' }} />
       </Stack>
       <StatusBar style="auto" />

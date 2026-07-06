@@ -111,8 +111,9 @@ export function AgentChat({
     <KeyboardAvoidingView
       style={[
         styles.flex,
-        // 键盘收起:留出悬浮底栏;键盘弹出:KAV/手动垫底接管,底栏留白退场
-        !kbVisible && bottomInset > 0 && { paddingBottom: bottomInset },
+        // 键盘收起:留出悬浮底栏(减去输入行自带内边距,让输入框贴住底栏);
+        // 键盘弹出:KAV/手动垫底接管,底栏留白退场
+        !kbVisible && bottomInset > 0 && { paddingBottom: Math.max(0, bottomInset - 16) },
         manualPad && kbVisible && { paddingBottom: Math.max(0, kbHeight - insets.bottom) },
       ]}
       behavior={Platform.OS === 'ios' ? 'padding' : manualPad ? undefined : 'height'}

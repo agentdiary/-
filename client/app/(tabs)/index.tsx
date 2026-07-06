@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
   FlatList,
+  Modal,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -27,6 +28,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { DiaryCalendar, dateKey } from '@/components/diary-calendar';
+import { PatternLock } from '@/components/pattern-lock';
 import { ScreenBackground } from '@/components/screen-background';
 import { ThemedText } from '@/components/themed-text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -39,8 +42,12 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useDiaryStore } from '@/stores/diary-store';
 import { useSettingsStore } from '@/stores/settings-store';
 
+function parseUtc(iso: string) {
+  return new Date(iso.endsWith('Z') || iso.includes('+') ? iso : `${iso}Z`);
+}
+
 function formatDate(iso: string) {
-  const d = new Date(iso.endsWith('Z') || iso.includes('+') ? iso : `${iso}Z`);
+  const d = parseUtc(iso);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
     d.getDate(),
   ).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
@@ -99,6 +106,12 @@ function DiaryList() {
   const { entries, pending, loading, error, refresh, remove, setVisibility } = useDiaryStore();
   const diaryBg = useSettingsStore((s) => s.diaryBg);
   const [status, setStatus] = useState<string | null>(null);
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  // 手势锁验证门:待执行动作暂存,图案验证通过后放行
+  const lockPattern = useSettingsStore((s) => s.lockPattern);
+  const [lockGate, setLockGate] = useState<(() => void) | null>(null);
+  const [lockError, setLockError] = useState(false);
 
   useEffect(() => {
     refresh();
@@ -113,10 +126,15 @@ function DiaryList() {
     }, []),
   );
 
-  const rows: Row[] = [
+  const allRows: Row[] = [
     ...pending.map((p): Row => ({ kind: 'pending', id: p.local_id, item: p })),
     ...entries.map((e): Row => ({ kind: 'entry', id: e.id, item: e })),
   ];
+  // 有日记的日期(本地时区),供月历打点
+  const markedDates = new Set(allRows.map((r) => dateKey(parseUtc(r.item.created_at))));
+  const rows = selectedDate
+    ? allRows.filter((r) => dateKey(parseUtc(r.item.created_at)) === selectedDate)
+    : allRows;
 
   const confirmDelete = (row: Row) => {
     Alert.alert(
@@ -136,10 +154,37 @@ function DiaryList() {
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.header}>
           <ThemedText type="title">日记</ThemedText>
-          <Pressable style={styles.headerButton} onPress={() => router.push('/appearance')} hitSlop={8}>
-            <IconSymbol size={24} name="paintbrush.fill" color={Colors[colorScheme].icon} />
-          </Pressable>
+          <View style={styles.headerActions}>
+            <Pressable
+              style={styles.headerButton}
+              onPress={() => setShowCalendar((v) => !v)}
+              hitSlop={8}>
+              <IconSymbol
+                size={24}
+                name="calendar"
+                color={showCalendar || selectedDate ? Colors[colorScheme].tint : Colors[colorScheme].icon}
+              />
+            </Pressable>
+            <Pressable style={styles.headerButton} onPress={() => router.push('/appearance')} hitSlop={8}>
+              <IconSymbol size={24} name="paintbrush.fill" color={Colors[colorScheme].icon} />
+            </Pressable>
+          </View>
         </View>
+
+        {showCalendar && (
+          <DiaryCalendar
+            marked={markedDates}
+            selected={selectedDate}
+            onSelect={(d) => setSelectedDate(d)}
+          />
+        )}
+        {selectedDate && (
+          <Pressable style={styles.filterChip} onPress={() => setSelectedDate(null)}>
+            <ThemedText style={styles.filterChipText}>
+              {selectedDate} · {rows.length} 篇 ✕
+            </ThemedText>
+          </Pressable>
+        )}
 
         <Pressable style={styles.statusChip} onPress={() => router.push('/status-editor')}>
           <ThemedText style={styles.statusText}>
@@ -171,13 +216,22 @@ function DiaryList() {
               onDelete={() => confirmDelete(item)}
               onPress={() => {
                 if (item.kind !== 'entry') return;
-                if (editRemainingMs(item.item.created_at) > 0) {
-                  router.push({
-                    pathname: '/diary-editor',
-                    params: { diaryId: item.id, initialContent: item.item.content },
-                  });
+                const open = () => {
+                  if (editRemainingMs(item.item.created_at) > 0) {
+                    router.push({
+                      pathname: '/diary-editor',
+                      params: { diaryId: item.id, initialContent: item.item.content },
+                    });
+                  } else {
+                    Alert.alert('日记已定格', '超过 24 小时的日记不可再修改,以保证它的真实性。');
+                  }
+                };
+                // 「仅自己」的日记在开启手势锁后需先验证图案
+                if (item.item.visibility === 'private' && lockPattern) {
+                  setLockError(false);
+                  setLockGate(() => open);
                 } else {
-                  Alert.alert('日记已定格', '超过 24 小时的日记不可再修改,以保证它的真实性。');
+                  open();
                 }
               }}
               onVisibility={(visibility) => {
@@ -195,6 +249,30 @@ function DiaryList() {
             />
           )}
         />
+
+        {/* 手势锁验证弹层 */}
+        <Modal visible={lockGate !== null} transparent animationType="fade">
+          <View style={styles.lockOverlay}>
+            <View style={[styles.lockPanel, { backgroundColor: colorScheme === 'dark' ? '#1c1e22' : '#fff' }]}>
+              <ThemedText style={styles.lockTitle}>绘制图案以打开私密日记</ThemedText>
+              {lockError && <Text style={styles.lockErrorText}>图案不对,再试一次</Text>}
+              <PatternLock
+                onComplete={(pattern) => {
+                  if (pattern === lockPattern) {
+                    const go = lockGate;
+                    setLockGate(null);
+                    go?.();
+                  } else {
+                    setLockError(true);
+                  }
+                }}
+              />
+              <Pressable onPress={() => setLockGate(null)} style={styles.lockCancel}>
+                <ThemedText style={styles.lockCancelText}>取消</ThemedText>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
 
         <Pressable
           style={[
@@ -359,12 +437,23 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 12,
   },
+  headerActions: { flexDirection: 'row', alignItems: 'center' },
   headerButton: {
     width: 44,
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  filterChip: {
+    alignSelf: 'flex-start',
+    marginHorizontal: 24,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 13,
+    backgroundColor: 'rgba(127,127,127,0.13)',
+  },
+  filterChipText: { fontSize: 13, opacity: 0.75 },
   statusChip: {
     alignSelf: 'flex-start',
     marginHorizontal: 24,
@@ -465,4 +554,19 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 5 },
   },
   fabText: { color: '#0b0c12', fontSize: 42, lineHeight: 48, fontWeight: '300' },
+  lockOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center',
+    paddingHorizontal: 28,
+  },
+  lockPanel: {
+    borderRadius: 22,
+    paddingVertical: 24,
+    paddingHorizontal: 12,
+  },
+  lockTitle: { textAlign: 'center', fontSize: 15, fontWeight: '600', marginBottom: 6 },
+  lockErrorText: { textAlign: 'center', fontSize: 12, color: '#c60', marginBottom: 4 },
+  lockCancel: { alignItems: 'center', marginTop: 10 },
+  lockCancelText: { fontSize: 13, opacity: 0.5 },
 });

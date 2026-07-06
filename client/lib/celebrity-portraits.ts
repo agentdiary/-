@@ -7,6 +7,7 @@ export const CELEBRITY_PORTRAITS: Record<string, ImageSourcePropType> = {
   鲁迅: require('@/assets/images/celebrities/luxun.jpg'),
   雨果: require('@/assets/images/celebrities/hugo.jpg'),
   李白: require('@/assets/images/celebrities/libai.jpg'),
+  张爱玲: require('@/assets/images/celebrities/zhangailing.jpg'),
 };
 
 // 普通用户的首字母头像底色(按用户名哈希取色,同一用户永远同色)

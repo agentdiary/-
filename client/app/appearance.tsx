@@ -1,6 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
@@ -104,12 +105,43 @@ function BackgroundPicker({
 }
 
 export default function AppearanceScreen() {
-  const { diaryBg, chatBg, setDiaryBg, setChatBg } = useSettingsStore();
+  const { diaryBg, chatBg, setDiaryBg, setChatBg, lockPattern } = useSettingsStore();
+  const scheme = useColorScheme() ?? 'light';
+  const tint = Colors[scheme].tint;
 
   return (
     <ThemedView style={styles.container}>
       <BackgroundPicker title="日记背景" value={diaryBg} onChange={setDiaryBg} slot="diary" />
       <BackgroundPicker title="聊天背景" value={chatBg} onChange={setChatBg} slot="chat" />
+
+      <View style={styles.section}>
+        <ThemedText style={styles.sectionTitle}>私密日记手势锁</ThemedText>
+        <View style={styles.lockRow}>
+          <ThemedText style={styles.lockStatus}>
+            {lockPattern ? '已开启:打开「仅自己」日记需绘制图案' : '未开启'}
+          </ThemedText>
+          <View style={styles.lockButtons}>
+            <Pressable
+              style={[styles.lockBtn, { backgroundColor: tint }]}
+              onPress={() => router.push({ pathname: '/pattern-setup', params: { mode: 'set' } })}>
+              <ThemedText
+                style={[styles.lockBtnText, { color: scheme === 'dark' ? '#151718' : '#fff' }]}>
+                {lockPattern ? '修改图案' : '设置图案'}
+              </ThemedText>
+            </Pressable>
+            {lockPattern && (
+              <Pressable
+                style={styles.lockBtnGhost}
+                onPress={() =>
+                  router.push({ pathname: '/pattern-setup', params: { mode: 'disable' } })
+                }>
+                <ThemedText style={styles.lockBtnGhostText}>关闭</ThemedText>
+              </Pressable>
+            )}
+          </View>
+        </View>
+      </View>
+
       <ThemedText style={styles.hint}>
         自定义图片会加一层淡淡的遮罩来保证文字可读;更换后立即生效。
       </ThemedText>
@@ -143,4 +175,17 @@ const styles = StyleSheet.create({
   uploadSwatch: { justifyContent: 'center', gap: 2 },
   uploadPlus: { fontSize: 24, opacity: 0.5, lineHeight: 28 },
   hint: { fontSize: 12, opacity: 0.45, paddingHorizontal: 20, marginTop: 24, lineHeight: 18 },
+  lockRow: { paddingHorizontal: 20, gap: 10 },
+  lockStatus: { fontSize: 13, opacity: 0.6 },
+  lockButtons: { flexDirection: 'row', gap: 10 },
+  lockBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 16 },
+  lockBtnText: { fontSize: 13, fontWeight: '600' },
+  lockBtnGhost: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(127,127,127,0.4)',
+  },
+  lockBtnGhostText: { fontSize: 13, opacity: 0.7 },
 });

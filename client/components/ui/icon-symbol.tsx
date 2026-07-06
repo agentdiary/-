@@ -22,6 +22,7 @@ const MAPPING = {
   'bubble.left.and.bubble.right.fill': 'chat',
   'person.2.fill': 'people',
   'paintbrush.fill': 'brush',
+  calendar: 'calendar-today',
 } as IconMapping;
 
 /**
