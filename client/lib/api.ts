@@ -18,6 +18,14 @@ export function setAuthToken(token: string | null) {
   authToken = token;
 }
 
+// 401 全局处理:token 失效(过期/被吊销/账号变动)时自动登出跳登录页,
+// 而不是把未授权误报成"离线"。auth 路径自身除外,防递归。
+let onUnauthorized: (() => void) | null = null;
+
+export function setUnauthorizedHandler(handler: () => void) {
+  onUnauthorized = handler;
+}
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -37,6 +45,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     headers.Authorization = `Bearer ${authToken}`;
   }
   const res = await fetch(`${BASE_URL}${path}`, { headers, ...init });
+  if (res.status === 401 && !path.startsWith('/auth/')) {
+    onUnauthorized?.();
+  }
   if (!res.ok) {
     let detail = `HTTP ${res.status}`;
     try {

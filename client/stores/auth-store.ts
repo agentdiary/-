@@ -1,7 +1,7 @@
 import { kvDelete, kvGet, kvSet } from '@/lib/kv';
 import { create } from 'zustand';
 
-import { api, setAuthToken } from '@/lib/api';
+import { api, setAuthToken, setUnauthorizedHandler } from '@/lib/api';
 
 const TOKEN_KEY = 'agentdiary_token';
 const USERNAME_KEY = 'agentdiary_username';
@@ -66,3 +66,11 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ token: null, username: null, userId: null });
   },
 }));
+
+// 任何接口返回 401(token 失效/账号变动)→ 自动登出,守卫会跳回登录页
+setUnauthorizedHandler(() => {
+  const { token, logout } = useAuthStore.getState();
+  if (token) {
+    logout().catch(() => {});
+  }
+});
