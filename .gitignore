@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+server/.venv/
+server/*.db
+server/*.log
+
+# 便携工具链:只提交 env.bat / env.ps1,二进制与缓存不入库
+utils/node/
+utils/npm-global/
+utils/npm-cache/
+
+# Expo / Node(client/.gitignore 里也有,双保险)
+client/node_modules/
+client/.expo/
+# .env 含本机局域网 IP,按机器配置,不入库(参照 client/.env.example)
+client/.env
+
+# 杂项
+*.log
+Thumbs.db

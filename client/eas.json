@@ -1,0 +1,17 @@
+{
+  "cli": {
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "preview": {
+      "distribution": "internal",
+      "channel": "preview",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://exes-valium-map.ngrok-free.dev"
+      }
+    }
+  }
+}
