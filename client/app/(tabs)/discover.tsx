@@ -1,4 +1,3 @@
-import * as SecureStore from 'expo-secure-store';
 import { Redirect, router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -27,6 +26,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { api } from '@/lib/api';
 import { avatarColor, CELEBRITY_PORTRAITS } from '@/lib/celebrity-portraits';
+import { kvGet, kvSet } from '@/lib/kv';
 import type { UserSummary } from '@/lib/types';
 import { useAuthStore } from '@/stores/auth-store';
 
@@ -44,7 +44,7 @@ const SPRING = { damping: 22, stiffness: 220 };
 
 async function loadOrder(): Promise<string[]> {
   try {
-    const raw = await SecureStore.getItemAsync(ORDER_KEY);
+    const raw = await kvGet(ORDER_KEY);
     return raw ? (JSON.parse(raw) as string[]) : [];
   } catch {
     return [];
@@ -235,7 +235,7 @@ export default function DiscoverScreen() {
     const ids = Object.entries(pos)
       .sort((a, b) => a[1] - b[1])
       .map(([id]) => id);
-    await SecureStore.setItemAsync(ORDER_KEY, JSON.stringify(ids)).catch(() => {});
+    await kvSet(ORDER_KEY, JSON.stringify(ids)).catch(() => {});
     // 不 setState:布局完全由共享值驱动,避免松手后的重渲染闪烁
   }, []);
 

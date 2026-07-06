@@ -1,4 +1,4 @@
-import * as SecureStore from 'expo-secure-store';
+import { kvGet, kvSet } from '@/lib/kv';
 import { create } from 'zustand';
 
 import type { BackgroundSetting } from '@/lib/backgrounds';
@@ -17,7 +17,7 @@ interface SettingsState {
 const DEFAULT: BackgroundSetting = { kind: 'default' };
 
 async function persist(diaryBg: BackgroundSetting, chatBg: BackgroundSetting) {
-  await SecureStore.setItemAsync(SETTINGS_KEY, JSON.stringify({ diaryBg, chatBg }));
+  await kvSet(SETTINGS_KEY, JSON.stringify({ diaryBg, chatBg }));
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
@@ -27,7 +27,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   hydrate: async () => {
     try {
-      const raw = await SecureStore.getItemAsync(SETTINGS_KEY);
+      const raw = await kvGet(SETTINGS_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
         set({ diaryBg: parsed.diaryBg ?? DEFAULT, chatBg: parsed.chatBg ?? DEFAULT });
