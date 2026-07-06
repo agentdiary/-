@@ -1,3 +1,4 @@
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { Redirect, router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -204,6 +205,7 @@ function DraggableRow({
 
 export default function DiscoverScreen() {
   const insets = useSafeAreaInsets();
+  const tabBarHeight = useBottomTabBarHeight();
   const token = useAuthStore((s) => s.token);
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [loading, setLoading] = useState(false);
@@ -273,7 +275,7 @@ export default function DiscoverScreen() {
         contentContainerStyle={
           users.length === 0
             ? styles.emptyContainer
-            : { height: users.length * ITEM_HEIGHT + ROW_GAP }
+            : { height: users.length * ITEM_HEIGHT + ROW_GAP + tabBarHeight }
         }>
         {users.length === 0 && !loading ? (
           <ThemedText style={styles.emptyText}>还没有其他用户。</ThemedText>

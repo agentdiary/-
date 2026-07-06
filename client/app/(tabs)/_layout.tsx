@@ -17,20 +17,21 @@ export default function TabLayout() {
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: false,
         tabBarButton: HapticTab,
-        // 与日记卡片同一套视觉语言:细描边 + 轻微透明底
+        // 悬浮半透明底栏:页面背景(含自定义渐变/图片)从底下透出,天然统一
         tabBarStyle: {
+          position: 'absolute',
           borderTopWidth: StyleSheet.hairlineWidth,
-          borderTopColor: 'rgba(127,127,127,0.28)',
-          backgroundColor: dark ? 'rgba(11,12,18,0.96)' : 'rgba(255,255,255,0.96)',
-          paddingTop: 6,
+          borderTopColor: 'rgba(127,127,127,0.25)',
+          backgroundColor: dark ? 'rgba(21,23,24,0.78)' : 'rgba(255,255,255,0.60)',
+          elevation: 0,
         },
-        tabBarLabelStyle: { fontSize: 12, fontWeight: '600' },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
       }}>
       <Tabs.Screen
         name="index"
         options={{
           title: '日记',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="book.fill" color={color} />,
+          tabBarIcon: ({ color }) => <IconSymbol size={26} name="book.fill" color={color} />,
         }}
       />
       <Tabs.Screen
@@ -38,7 +39,7 @@ export default function TabLayout() {
         options={{
           title: '化身',
           tabBarIcon: ({ color }) => (
-            <IconSymbol size={28} name="bubble.left.and.bubble.right.fill" color={color} />
+            <IconSymbol size={26} name="bubble.left.and.bubble.right.fill" color={color} />
           ),
         }}
       />
@@ -47,7 +48,7 @@ export default function TabLayout() {
         options={{
           title: '发现',
           tabBarIcon: ({ color }) => (
-            <IconSymbol size={28} name="person.2.fill" color={color} />
+            <IconSymbol size={26} name="person.2.fill" color={color} />
           ),
         }}
       />

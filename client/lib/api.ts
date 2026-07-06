@@ -100,6 +100,13 @@ export const api = {
       }),
     }),
 
+  // 修改日记内容(仅限落笔 24 小时内,后端强制校验)
+  updateDiary: (id: string, content: string) =>
+    request<DiaryEntry>(`/diaries/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ content }),
+    }),
+
   getDiaryAllowed: (id: string) =>
     request<{ allowed_user_ids: string[] }>(`/diaries/${id}/allowed`),
 

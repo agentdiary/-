@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta, timezone
+
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 from sqlmodel import Session, select
@@ -11,6 +13,15 @@ from ..models import DialoguePair, DiaryAllowedUser, DiaryEntry, PersonaCard, Us
 router = APIRouter(prefix="/diaries", tags=["diaries"])
 
 VISIBILITIES = {"public", "restricted", "private"}
+# 落笔 24 小时内可修改内容,之后定格(产品约定:不可篡改保证日记真实性)
+EDIT_WINDOW = timedelta(hours=24)
+
+
+def _within_edit_window(diary: DiaryEntry) -> bool:
+    created = diary.created_at
+    if created.tzinfo is None:  # SQLite 存 naive UTC
+        created = created.replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc) - created <= EDIT_WINDOW
 
 
 class DiaryCreate(BaseModel):
@@ -112,6 +123,39 @@ def get_allowed_users(
         )
     ]
     return {"allowed_user_ids": ids}
+
+
+class DiaryEdit(BaseModel):
+    content: str
+
+
+@router.put("/{diary_id}")
+def edit_diary(
+    diary_id: str,
+    body: DiaryEdit,
+    background_tasks: BackgroundTasks,
+    me: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> DiaryEntry:
+    """修改日记内容(仅限落笔 24 小时内);旧衍生数据作废并重新蒸馏。"""
+    diary = _owned_diary(diary_id, me, session)
+    if not _within_edit_window(diary):
+        raise HTTPException(status_code=403, detail="超过 24 小时,日记已定格,不可再修改")
+    content = body.content.strip()
+    if not content:
+        raise HTTPException(status_code=422, detail="日记内容不能为空")
+    diary.content = content
+    diary.updated_at = datetime.now(timezone.utc)
+    # 内容变了,旧的对话对与卡片不再成立
+    for pair in session.exec(select(DialoguePair).where(DialoguePair.source_diary_id == diary.id)):
+        session.delete(pair)
+    for card in session.exec(select(PersonaCard).where(PersonaCard.source_diary_id == diary.id)):
+        session.delete(card)
+    session.add(diary)
+    session.commit()
+    session.refresh(diary)
+    background_tasks.add_task(run_pipeline_for_diary, diary.id)
+    return diary
 
 
 @router.post("/{diary_id}/distill")

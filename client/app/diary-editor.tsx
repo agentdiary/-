@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -31,8 +31,16 @@ export default function DiaryEditorScreen() {
   const tint = Colors[colorScheme].tint;
   const onTint = colorScheme === 'dark' ? '#151718' : '#fff';
   const add = useDiaryStore((s) => s.add);
+  const edit = useDiaryStore((s) => s.edit);
 
-  const [content, setContent] = useState('');
+  // 编辑模式:从日记卡片点入,带 diaryId 与原文;24h 窗口由后端强制校验
+  const { diaryId, initialContent } = useLocalSearchParams<{
+    diaryId?: string;
+    initialContent?: string;
+  }>();
+  const isEditing = !!diaryId;
+
+  const [content, setContent] = useState(initialContent ?? '');
   const [visibility, setVisibility] = useState<DiaryVisibility>('public');
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [allowed, setAllowed] = useState<Set<string>>(new Set());
@@ -62,7 +70,11 @@ export default function DiaryEditorScreen() {
     if (!text) return;
     setSaving(true);
     try {
-      await add(text, visibility, visibility === 'restricted' ? [...allowed] : []);
+      if (isEditing && diaryId) {
+        await edit(diaryId, text);
+      } else {
+        await add(text, visibility, visibility === 'restricted' ? [...allowed] : []);
+      }
       router.back();
     } catch (e) {
       Alert.alert('保存失败', String(e));
@@ -74,7 +86,13 @@ export default function DiaryEditorScreen() {
 
   return (
     <KeyboardAvoidingView style={styles.flex} behavior="padding">
+      <Stack.Screen options={{ title: isEditing ? '修改日记' : '写日记' }} />
       <ThemedView style={styles.container}>
+        {isEditing && (
+          <ThemedText style={styles.hint}>
+            ⏳ 日记落笔 24 小时内可修改;修改后化身会重新学习这篇内容。
+          </ThemedText>
+        )}
         <TextInput
           style={[styles.input, { color: Colors[colorScheme].text }]}
           multiline
@@ -85,6 +103,8 @@ export default function DiaryEditorScreen() {
           onChangeText={setContent}
         />
 
+        {/* 编辑模式只改内容;可见性用日记卡片右滑调整 */}
+        {!isEditing && (
         <View style={styles.visibilityRow}>
           {VISIBILITY_OPTIONS.map((o) => {
             const active = visibility === o.key;
@@ -98,9 +118,10 @@ export default function DiaryEditorScreen() {
             );
           })}
         </View>
-        <ThemedText style={styles.hint}>{selectedHint}</ThemedText>
+        )}
+        {!isEditing && <ThemedText style={styles.hint}>{selectedHint}</ThemedText>}
 
-        {visibility === 'restricted' && (
+        {!isEditing && visibility === 'restricted' && (
           <ScrollView style={styles.userList}>
             {users.length === 0 ? (
               <ThemedText style={styles.hint}>暂无其他用户可选</ThemedText>

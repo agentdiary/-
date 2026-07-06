@@ -1,3 +1,4 @@
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { Redirect, router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -45,6 +46,24 @@ function formatDate(iso: string) {
   ).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
+// 日记落笔 24 小时内可修改,之后定格(保证日记的真实性)
+const EDIT_WINDOW_MS = 24 * 3600 * 1000;
+
+function editRemainingMs(createdAtIso: string): number {
+  const created = new Date(
+    createdAtIso.endsWith('Z') || createdAtIso.includes('+')
+      ? createdAtIso
+      : `${createdAtIso}Z`,
+  ).getTime();
+  return created + EDIT_WINDOW_MS - Date.now();
+}
+
+function formatRemaining(ms: number): string {
+  const hours = ms / 3600000;
+  if (hours >= 1) return `${Math.floor(hours)}h`;
+  return `${Math.max(1, Math.floor(ms / 60000))}m`;
+}
+
 type Row =
   | { kind: 'pending'; id: string; item: PendingDiary }
   | { kind: 'entry'; id: string; item: DiaryEntry };
@@ -75,6 +94,7 @@ export default function DiaryListScreen() {
 
 function DiaryList() {
   const insets = useSafeAreaInsets();
+  const tabBarHeight = useBottomTabBarHeight();
   const colorScheme = useColorScheme() ?? 'light';
   const { entries, pending, loading, error, refresh, remove, setVisibility } = useDiaryStore();
   const diaryBg = useSettingsStore((s) => s.diaryBg);
@@ -136,7 +156,7 @@ function DiaryList() {
           contentContainerStyle={[
             styles.listContent,
             rows.length === 0 && styles.emptyContainer,
-            { paddingBottom: insets.bottom + 108 },
+            { paddingBottom: tabBarHeight + 96 },
           ]}
           ListEmptyComponent={
             !loading ? (
@@ -149,6 +169,17 @@ function DiaryList() {
             <DiaryRow
               row={item}
               onDelete={() => confirmDelete(item)}
+              onPress={() => {
+                if (item.kind !== 'entry') return;
+                if (editRemainingMs(item.item.created_at) > 0) {
+                  router.push({
+                    pathname: '/diary-editor',
+                    params: { diaryId: item.id, initialContent: item.item.content },
+                  });
+                } else {
+                  Alert.alert('日记已定格', '超过 24 小时的日记不可再修改,以保证它的真实性。');
+                }
+              }}
               onVisibility={(visibility) => {
                 // 「指定」需要选人:已同步的日记跳白名单选择页;
                 // 未同步的本地日记没有服务器 id,先仅切换档位
@@ -168,7 +199,10 @@ function DiaryList() {
         <Pressable
           style={[
             styles.fab,
-            { backgroundColor: colorScheme === 'dark' ? '#f4f5f8' : '#ffffff' },
+            {
+              backgroundColor: colorScheme === 'dark' ? '#f4f5f8' : '#ffffff',
+              bottom: tabBarHeight + 18,
+            },
           ]}
           onPress={() => router.push('/diary-editor')}>
           <Text style={styles.fabText}>+</Text>
@@ -181,10 +215,12 @@ function DiaryList() {
 function DiaryRow({
   row,
   onDelete,
+  onPress,
   onVisibility,
 }: {
   row: Row;
   onDelete: () => void;
+  onPress: () => void;
   onVisibility: (visibility: DiaryVisibility) => void;
 }) {
   const colorScheme = useColorScheme() ?? 'light';
@@ -239,6 +275,8 @@ function DiaryRow({
 
   const visibility = row.item.visibility as DiaryVisibility;
   const label = row.kind === 'pending' ? '待同步' : VISIBILITY_LABEL[visibility];
+  // 沙漏:24 小时修改窗口的剩余时间;窗口关闭后不显示(日记已定格)
+  const remaining = row.kind === 'entry' ? editRemainingMs(row.item.created_at) : 0;
 
   return (
     <View style={styles.rowShell}>
@@ -280,9 +318,14 @@ function DiaryRow({
 
       <GestureDetector gesture={gesture}>
         <Animated.View style={cardStyle}>
-          <Pressable onLongPress={onDelete} style={styles.card}>
+          <Pressable onPress={onPress} onLongPress={onDelete} style={styles.card}>
             <View style={styles.cardTop}>
-              <ThemedText style={styles.cardDate}>{formatDate(row.item.created_at)}</ThemedText>
+              <View style={styles.cardTopLeft}>
+                <ThemedText style={styles.cardDate}>{formatDate(row.item.created_at)}</ThemedText>
+                {remaining > 0 && (
+                  <ThemedText style={styles.editWindow}>⏳{formatRemaining(remaining)}</ThemedText>
+                )}
+              </View>
               <ThemedText
                 style={[
                   styles.badge,
@@ -391,6 +434,8 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   cardDate: { fontSize: 14, opacity: 0.5 },
+  cardTopLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  editWindow: { fontSize: 12, opacity: 0.55 },
   cardContent: { fontSize: 19, lineHeight: 27 },
   badge: {
     overflow: 'hidden',

@@ -31,11 +31,14 @@ export function AgentChat({
   emptyHint,
   avatarImage,
   keyboardOffset,
+  bottomInset = 0,
 }: {
   targetUserId?: string;
   emptyHint: string;
   avatarImage?: ImageSourcePropType;
   keyboardOffset?: number;
+  // 悬浮 Tab 栏页面需传栏高:键盘收起时给输入框留出底栏空间
+  bottomInset?: number;
 }) {
   const scheme = useColorScheme() ?? 'light';
   const insets = useSafeAreaInsets();
@@ -52,16 +55,18 @@ export function AgentChat({
   const manualPad = Platform.OS === 'android' && keyboardOffset !== undefined;
   const [kbHeight, setKbHeight] = useState(0);
   useEffect(() => {
-    if (!manualPad) return;
-    const show = Keyboard.addListener('keyboardDidShow', (e) =>
-      setKbHeight(e.endCoordinates.height),
-    );
-    const hide = Keyboard.addListener('keyboardDidHide', () => setKbHeight(0));
+    // 两个平台都监听:manualPad 用高度值;其余场景用"键盘是否弹出"
+    // 来切换底栏留白(键盘弹出时 KAV 已接管,叠加底栏留白会悬空)
+    const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const show = Keyboard.addListener(showEvt, (e) => setKbHeight(e.endCoordinates.height));
+    const hide = Keyboard.addListener(hideEvt, () => setKbHeight(0));
     return () => {
       show.remove();
       hide.remove();
     };
-  }, [manualPad]);
+  }, []);
+  const kbVisible = kbHeight > 0;
 
   const load = useCallback(async () => {
     try {
@@ -106,7 +111,9 @@ export function AgentChat({
     <KeyboardAvoidingView
       style={[
         styles.flex,
-        manualPad && kbHeight > 0 && { paddingBottom: Math.max(0, kbHeight - insets.bottom) },
+        // 键盘收起:留出悬浮底栏;键盘弹出:KAV/手动垫底接管,底栏留白退场
+        !kbVisible && bottomInset > 0 && { paddingBottom: bottomInset },
+        manualPad && kbVisible && { paddingBottom: Math.max(0, kbHeight - insets.bottom) },
       ]}
       behavior={Platform.OS === 'ios' ? 'padding' : manualPad ? undefined : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? (keyboardOffset ?? 0) : 0}>

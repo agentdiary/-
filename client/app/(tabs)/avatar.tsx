@@ -1,3 +1,4 @@
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { Redirect } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,6 +11,7 @@ import { useSettingsStore } from '@/stores/settings-store';
 
 export default function MyAvatarScreen() {
   const insets = useSafeAreaInsets();
+  const tabBarHeight = useBottomTabBarHeight();
   const { token, username, logout } = useAuthStore();
   const chatBg = useSettingsStore((s) => s.chatBg);
 
@@ -26,7 +28,10 @@ export default function MyAvatarScreen() {
             <ThemedText style={styles.logout}>{username} · 退出</ThemedText>
           </Pressable>
         </View>
-        <AgentChat emptyHint="这是你的数字化身,由你的日记喂养。说点什么试试——写的日记越多,它越像你。" />
+        <AgentChat
+          bottomInset={tabBarHeight}
+          emptyHint="这是你的数字化身,由你的日记喂养。说点什么试试——写的日记越多,它越像你。"
+        />
       </View>
     </ScreenBackground>
   );
