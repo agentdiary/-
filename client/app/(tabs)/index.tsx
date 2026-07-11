@@ -1,4 +1,3 @@
-import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { Redirect, router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -101,7 +100,6 @@ export default function DiaryListScreen() {
 
 function DiaryList() {
   const insets = useSafeAreaInsets();
-  const tabBarHeight = useBottomTabBarHeight();
   const colorScheme = useColorScheme() ?? 'light';
   const { entries, pending, loading, error, refresh, remove, setVisibility, setLocked } =
     useDiaryStore();
@@ -203,7 +201,7 @@ function DiaryList() {
           contentContainerStyle={[
             styles.listContent,
             rows.length === 0 && styles.emptyContainer,
-            { paddingBottom: tabBarHeight + 96 },
+            { paddingBottom: insets.bottom + 96 },
           ]}
           ListEmptyComponent={
             !loading ? (
@@ -323,7 +321,7 @@ function DiaryList() {
             styles.fab,
             {
               backgroundColor: colorScheme === 'dark' ? '#f4f5f8' : '#ffffff',
-              bottom: tabBarHeight + 18,
+              bottom: insets.bottom + 24,
             },
           ]}
           onPress={() => router.push('/diary-editor')}>

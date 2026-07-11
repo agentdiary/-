@@ -1,9 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   FlatList,
-  Image,
-  type ImageSourcePropType,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -19,41 +16,38 @@ import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { api } from '@/lib/api';
+import type { DirectMessageItem } from '@/lib/types';
+import { useAuthStore } from '@/stores/auth-store';
 
-interface Message {
-  id: string;
-  text: string;
-  from: 'me' | 'avatar';
-}
+// 没有推送通道,靠前台轮询拿对方的新消息;页面退出即停
+const POLL_MS = 4000;
 
-export function AgentChat({
-  targetUserId,
-  emptyHint,
-  avatarImage,
+export function DirectChat({
+  userId,
+  username,
   keyboardOffset,
 }: {
-  targetUserId?: string;
-  emptyHint: string;
-  avatarImage?: ImageSourcePropType;
+  userId: string;
+  username: string;
   keyboardOffset?: number;
 }) {
   const scheme = useColorScheme() ?? 'light';
   const insets = useSafeAreaInsets();
   const tint = Colors[scheme].tint;
   const onTint = scheme === 'dark' ? '#151718' : '#fff';
+  const myId = useAuthStore((s) => s.userId);
 
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<DirectMessageItem[]>([]);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 乐观插入的临时消息在下一次轮询返回前保留,防止发送后闪没
+  const optimistic = useRef<DirectMessageItem[]>([]);
 
-  // Android + 带导航头的页面(传了 keyboardOffset):KAV 在 react-native-screens
-  // 的带头容器里计算不可靠(偏高/偏低反复),改为监听键盘高度手动垫底
+  // Android + 带导航头的页面:KAV 计算不可靠,监听键盘高度手动垫底(同 AgentChat)
   const manualPad = Platform.OS === 'android' && keyboardOffset !== undefined;
   const [kbHeight, setKbHeight] = useState(0);
   useEffect(() => {
-    // 两个平台都监听:manualPad 用高度值;其余场景用"键盘是否弹出"
-    // 来切换底栏留白(键盘弹出时 KAV 已接管,叠加底栏留白会悬空)
     const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
     const show = Keyboard.addListener(showEvt, (e) => setKbHeight(e.endCoordinates.height));
@@ -67,24 +61,20 @@ export function AgentChat({
 
   const load = useCallback(async () => {
     try {
-      const items = await api.getChatHistory(targetUserId);
-      setMessages(
-        items
-          .map((i) => ({
-            id: i.id,
-            text: i.content,
-            from: i.role === 'user' ? ('me' as const) : ('avatar' as const),
-          }))
-          .reverse(),
-      );
+      const items = await api.listDirectMessages(userId);
+      const got = new Set(items.map((i) => i.id));
+      optimistic.current = optimistic.current.filter((m) => !got.has(m.id));
+      setMessages([...optimistic.current, ...items]);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
-  }, [targetUserId]);
+  }, [userId]);
 
   useEffect(() => {
     load();
+    const timer = setInterval(load, POLL_MS);
+    return () => clearInterval(timer);
   }, [load]);
 
   const submit = async () => {
@@ -92,12 +82,23 @@ export function AgentChat({
     if (!text || sending) return;
     setDraft('');
     setSending(true);
-    setError(null);
-    setMessages((prev) => [{ id: `me-${Date.now()}`, text, from: 'me' }, ...prev]);
+    const temp: DirectMessageItem = {
+      id: `local-${Date.now()}`,
+      sender_id: myId ?? '',
+      content: text,
+      created_at: new Date().toISOString(),
+    };
+    optimistic.current = [temp, ...optimistic.current];
+    setMessages((prev) => [temp, ...prev]);
     try {
-      const reply = await api.sendToAgent(text, targetUserId);
-      setMessages((prev) => [{ id: reply.id, text: reply.content, from: 'avatar' }, ...prev]);
+      const saved = await api.sendDirectMessage(userId, text);
+      optimistic.current = optimistic.current.filter((m) => m.id !== temp.id);
+      setMessages((prev) => prev.map((m) => (m.id === temp.id ? saved : m)));
+      setError(null);
     } catch (e) {
+      optimistic.current = optimistic.current.filter((m) => m.id !== temp.id);
+      setMessages((prev) => prev.filter((m) => m.id !== temp.id));
+      setDraft(text); // 发送失败把草稿还回去
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setSending(false);
@@ -118,43 +119,37 @@ export function AgentChat({
         keyExtractor={(m) => m.id}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={[styles.list, messages.length === 0 && styles.listEmpty]}
-        ListEmptyComponent={<ThemedText style={styles.empty}>{emptyHint}</ThemedText>}
+        ListEmptyComponent={
+          <ThemedText style={styles.empty}>
+            AI 裁判觉得你们聊得来,真人对话已解锁。这里是 {username} 本人——说句话吧。
+          </ThemedText>
+        }
         renderItem={({ item }) =>
-          item.from === 'me' ? (
+          item.sender_id === myId ? (
             <View style={[styles.bubble, styles.bubbleMe, { backgroundColor: tint }]}>
-              <Text style={[styles.bubbleText, { color: onTint }]}>{item.text}</Text>
+              <Text style={[styles.bubbleText, { color: onTint }]}>{item.content}</Text>
             </View>
           ) : (
-            <View style={styles.avatarRow}>
-              {avatarImage && <Image source={avatarImage} style={styles.portrait} />}
-              <View style={[styles.bubble, styles.bubbleAvatar]}>
-                <Text style={[styles.bubbleText, { color: Colors[scheme].text }]}>
-                  {item.text}
-                </Text>
-              </View>
+            <View style={[styles.bubble, styles.bubblePeer]}>
+              <Text style={[styles.bubbleText, { color: Colors[scheme].text }]}>
+                {item.content}
+              </Text>
             </View>
           )
         }
       />
 
-      {sending && (
-        <View style={styles.typing}>
-          <ActivityIndicator size="small" />
-          <ThemedText style={styles.typingText}>化身正在思考，约 10~30 秒...</ThemedText>
-        </View>
-      )}
-      {error && <Text style={styles.error}>出错了：{error}</Text>}
+      {error && <Text style={styles.error}>出错了:{error}</Text>}
 
       <View style={[styles.inputRow, { paddingBottom: Math.max(insets.bottom, 8) }]}>
         <TextInput
           style={[styles.input, { color: Colors[scheme].text }]}
-          placeholder="说点什么..."
+          placeholder={`给 ${username} 发消息...`}
           placeholderTextColor="rgba(127,127,127,0.62)"
           value={draft}
           onChangeText={setDraft}
           onSubmitEditing={submit}
           returnKeyType="send"
-          editable={!sending}
         />
         <Pressable
           style={[
@@ -189,24 +184,14 @@ const styles = StyleSheet.create({
     marginVertical: 4,
   },
   bubbleMe: { alignSelf: 'flex-end', borderBottomRightRadius: 5 },
-  bubbleAvatar: {
+  bubblePeer: {
     alignSelf: 'flex-start',
     borderBottomLeftRadius: 5,
     backgroundColor: 'rgba(127,127,127,0.12)',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(255,255,255,0.08)',
   },
-  avatarRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 6 },
-  portrait: { width: 28, height: 28, borderRadius: 14, marginBottom: 6 },
   bubbleText: { fontSize: 16, lineHeight: 22 },
-  typing: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 20,
-    paddingVertical: 4,
-  },
-  typingText: { fontSize: 13, opacity: 0.6 },
   error: { color: '#c44', paddingHorizontal: 20, paddingVertical: 4 },
   inputRow: {
     flexDirection: 'row',

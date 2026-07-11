@@ -40,6 +40,31 @@ export interface AvatarReply {
   cited_card_ids: string[];
 }
 
+// AI 裁判:对「我与某化身的对话」的契合度评估;passed = 达到解锁门槛
+export interface MatchReport {
+  id: string;
+  score: number; // 0~100
+  summary: string;
+  reasons: string[];
+  passed: boolean;
+  created_at: string;
+}
+
+export interface JudgeStatus {
+  visitor_turns: number;
+  min_turns: number;
+  can_evaluate: boolean;
+  unlocked: boolean; // 该用户对的真人对话是否已解锁
+  report: MatchReport | null;
+}
+
+export interface DirectMessageItem {
+  id: string;
+  sender_id: string;
+  content: string;
+  created_at: string;
+}
+
 export interface PersonaCard {
   id: string;
   assertion: string;

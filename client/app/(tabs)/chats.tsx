@@ -1,4 +1,3 @@
-import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { Redirect, router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -25,13 +24,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { Colors } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { api } from '@/lib/api';
 import { avatarColor, CELEBRITY_PORTRAITS } from '@/lib/celebrity-portraits';
 import { kvGet, kvSet } from '@/lib/kv';
 import type { UserSummary } from '@/lib/types';
 import { useAuthStore } from '@/stores/auth-store';
 
-// 用户自定义的发现页排序(仅本机显示顺序,长按拖动调整)
+// 用户自定义的会话列表排序(仅本机显示顺序,长按拖动调整)
 const ORDER_KEY = 'agentdiary_discover_order';
 
 // 固定行高:自绘排序依赖等高行(卡片 84 + 间距 14)
@@ -71,6 +72,17 @@ function UserAvatar({ username }: { username: string }) {
       <Text style={styles.avatarInitial}>{username.slice(0, 1).toUpperCase()}</Text>
     </View>
   );
+}
+
+function openChat(user: UserSummary) {
+  router.push({
+    pathname: '/visit/[userId]',
+    params: {
+      userId: user.id,
+      username: user.username,
+      builtin: user.is_builtin ? '1' : '',
+    },
+  });
 }
 
 function DraggableRow({
@@ -171,14 +183,7 @@ function DraggableRow({
   return (
     <GestureDetector gesture={gesture}>
       <Animated.View style={[styles.rowWrap, animatedStyle]}>
-        <Pressable
-          style={styles.card}
-          onPress={() =>
-            router.push({
-              pathname: '/visit/[userId]',
-              params: { userId: user.id, username: user.username },
-            })
-          }>
+        <Pressable style={styles.card} onPress={() => openChat(user)}>
           <UserAvatar username={user.username} />
           <View style={styles.cardBody}>
             <View style={styles.cardRow}>
@@ -203,10 +208,10 @@ function DraggableRow({
   );
 }
 
-export default function DiscoverScreen() {
+export default function ChatsScreen() {
   const insets = useSafeAreaInsets();
-  const tabBarHeight = useBottomTabBarHeight();
-  const token = useAuthStore((s) => s.token);
+  const scheme = useColorScheme() ?? 'light';
+  const { token, username, userId, logout } = useAuthStore();
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -264,9 +269,37 @@ export default function DiscoverScreen() {
   return (
     <ThemedView style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <ThemedText type="title">发现</ThemedText>
-        <ThemedText style={styles.subtitle}>点按去聊天;长按拖动调整顺序</ThemedText>
+        <View>
+          <ThemedText type="title">对话</ThemedText>
+          <ThemedText style={styles.subtitle}>点按去聊天;长按拖动调整顺序</ThemedText>
+        </View>
+        <Pressable onPress={logout}>
+          <ThemedText style={styles.logout}>{username} · 退出</ThemedText>
+        </Pressable>
       </View>
+
+      {/* 我的化身:固定置顶,不参与拖动排序 */}
+      <Pressable
+        style={[styles.card, styles.selfCard, { borderColor: Colors[scheme].tint }]}
+        onPress={() =>
+          router.push({
+            pathname: '/visit/[userId]',
+            params: { userId: userId ?? '', username: username ?? '', builtin: '' },
+          })
+        }>
+        <UserAvatar username={username ?? '我'} />
+        <View style={styles.cardBody}>
+          <View style={styles.cardRow}>
+            <ThemedText style={styles.cardName} numberOfLines={1}>
+              我的化身
+            </ThemedText>
+            <ThemedText style={styles.cardMeta}>自聊</ThemedText>
+          </View>
+          <ThemedText style={styles.cardHint} numberOfLines={1}>
+            和自己的化身聊聊,检验它像不像你 →
+          </ThemedText>
+        </View>
+      </Pressable>
 
       {error && <Text style={styles.error}>{error}</Text>}
 
@@ -275,7 +308,7 @@ export default function DiscoverScreen() {
         contentContainerStyle={
           users.length === 0
             ? styles.emptyContainer
-            : { height: users.length * ITEM_HEIGHT + ROW_GAP + tabBarHeight }
+            : { height: users.length * ITEM_HEIGHT + ROW_GAP + insets.bottom + 20 }
         }>
         {users.length === 0 && !loading ? (
           <ThemedText style={styles.emptyText}>还没有其他用户。</ThemedText>
@@ -289,8 +322,16 @@ export default function DiscoverScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingHorizontal: 24, paddingTop: 10, paddingBottom: 12 },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingHorizontal: 24,
+    paddingTop: 10,
+    paddingBottom: 12,
+  },
   subtitle: { fontSize: 13, opacity: 0.5, marginTop: 4 },
+  logout: { fontSize: 13, opacity: 0.5, marginTop: 8 },
   error: { color: '#c44', paddingHorizontal: 24, paddingBottom: 8 },
   emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   emptyText: { opacity: 0.5 },
@@ -310,6 +351,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
+  },
+  selfCard: {
+    marginHorizontal: 20,
+    marginBottom: ROW_GAP,
+    borderWidth: 1,
   },
   avatar: {
     width: 48,

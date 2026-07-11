@@ -7,6 +7,8 @@ import type {
   ChatHistoryItem,
   DiaryEntry,
   DiaryVisibility,
+  DirectMessageItem,
+  JudgeStatus,
   UserSummary,
 } from './types';
 
@@ -142,4 +144,19 @@ export const api = {
     request<ChatHistoryItem[]>(
       targetUserId ? `/chat/history?target_user_id=${targetUserId}` : '/chat/history',
     ),
+
+  // AI 裁判:评估我与该用户化身的对话契合度;达标解锁真人对话
+  getJudgeStatus: (targetUserId: string) => request<JudgeStatus>(`/judge/${targetUserId}`),
+
+  evaluateMatch: (targetUserId: string) =>
+    request<JudgeStatus>(`/judge/${targetUserId}/evaluate`, { method: 'POST' }),
+
+  // 真人对话(裁判解锁后);列表为新→旧,直接喂 inverted FlatList
+  listDirectMessages: (userId: string) => request<DirectMessageItem[]>(`/dm/${userId}`),
+
+  sendDirectMessage: (userId: string, content: string) =>
+    request<DirectMessageItem>(`/dm/${userId}`, {
+      method: 'POST',
+      body: JSON.stringify({ content }),
+    }),
 };

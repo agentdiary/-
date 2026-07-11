@@ -85,6 +85,33 @@ class DialoguePair(SQLModel, table=True):
     created_at: datetime = Field(default_factory=_now)
 
 
+class MatchReport(SQLModel, table=True):
+    """AI 裁判产物:对 (化身主人, 访客) 化身对话的契合度评估报告。
+
+    另一路 LLM 只读双方的化身对话记录(不读日记),从话题投机度/价值观呼应/
+    往来质量三个维度打分;score >= 门槛时 passed=True,解锁这对用户的真人对话。
+    """
+
+    id: str = Field(default_factory=_new_id, primary_key=True)
+    owner_id: str = Field(index=True)  # 化身主人
+    visitor_id: str = Field(index=True)  # 发起评估的访客
+    score: int = Field(ge=0, le=100)
+    summary: str
+    reasons_json: str  # JSON list[str],各维度评语
+    passed: bool = Field(default=False)
+    created_at: datetime = Field(default_factory=_now)
+
+
+class DirectMessage(SQLModel, table=True):
+    """真人对话消息。仅在 AI 裁判解锁该用户对后可收发——化身社交漏斗的终点。"""
+
+    id: str = Field(default_factory=_new_id, primary_key=True)
+    sender_id: str = Field(index=True)
+    recipient_id: str = Field(index=True)
+    content: str
+    created_at: datetime = Field(default_factory=_now)
+
+
 class PersonaCard(SQLModel, table=True):
     """蒸馏产物:人格断言卡片,用于深层人格 RAG。
 
