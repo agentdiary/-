@@ -31,11 +31,14 @@ export function AgentChat({
   emptyHint,
   avatarImage,
   keyboardOffset,
+  onMessageSent,
 }: {
   targetUserId?: string;
   emptyHint: string;
   avatarImage?: ImageSourcePropType;
   keyboardOffset?: number;
+  // 一轮问答落库后回调(裁判入口用它刷新可评估的轮次数)
+  onMessageSent?: () => void;
 }) {
   const scheme = useColorScheme() ?? 'light';
   const insets = useSafeAreaInsets();
@@ -97,6 +100,7 @@ export function AgentChat({
     try {
       const reply = await api.sendToAgent(text, targetUserId);
       setMessages((prev) => [{ id: reply.id, text: reply.content, from: 'avatar' }, ...prev]);
+      onMessageSent?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {

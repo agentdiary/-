@@ -66,7 +66,12 @@ def chat_messages(
 
 def chat_json(system: str, prompt: str) -> dict:
     text = chat(system, prompt, json_mode=True)
-    return _parse_json_loose(text)
+    try:
+        return _parse_json_loose(text)
+    except LLMError:
+        # 本地小模型偶发截断/坏 JSON,重采样一次往往就好
+        text = chat(system, prompt, json_mode=True)
+        return _parse_json_loose(text)
 
 
 def _parse_json_loose(text: str) -> dict:
@@ -85,4 +90,11 @@ def _parse_json_loose(text: str) -> dict:
             return json.loads(embedded.group(0))
         except json.JSONDecodeError:
             pass
+    # 生成中途截断的 JSON:试着补上未闭合的字符串/数组/对象
+    if text.startswith("{"):
+        for suffix in ('"}', '"]}', "]}", "}", '"}]}'):
+            try:
+                return json.loads(text + suffix)
+            except json.JSONDecodeError:
+                continue
     raise LLMError(f"模型未返回合法 JSON: {text[:200]}")
