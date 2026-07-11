@@ -219,16 +219,7 @@ function DiaryList() {
               onDelete={() => confirmDelete(item)}
               onPress={() => {
                 if (item.kind !== 'entry') return;
-                if (item.item.locked) {
-                  if (lockPattern && !unlockedDiaryIds.has(item.id)) {
-                    setLockError(false);
-                    setLockGate(() => () => {
-                      setUnlockedDiaryIds((prev) => new Set(prev).add(item.id));
-                    });
-                  }
-                  return;
-                }
-                const open = () => {
+                const openDetail = () => {
                   router.push({
                     pathname: '/diary-editor',
                     params: {
@@ -238,7 +229,13 @@ function DiaryList() {
                     },
                   });
                 };
-                open();
+                // 短按加锁日记:验证通过直接进详情页,锁状态保持不变
+                if (item.item.locked && lockPattern) {
+                  setLockError(false);
+                  setLockGate(() => openDetail);
+                  return;
+                }
+                openDetail();
               }}
               onLock={() => {
                 if (item.kind !== 'entry') return;
@@ -301,7 +298,7 @@ function DiaryList() {
         <Modal visible={lockGate !== null} transparent animationType="fade">
           <View style={styles.lockOverlay}>
             <View style={[styles.lockPanel, { backgroundColor: colorScheme === 'dark' ? '#1c1e22' : '#fff' }]}>
-              <ThemedText style={styles.lockTitle}>绘制图案以打开私密日记</ThemedText>
+              <ThemedText style={styles.lockTitle}>绘制图案以解锁私密日记</ThemedText>
               {lockError && <Text style={styles.lockErrorText}>图案不对,再试一次</Text>}
               <PatternLock
                 onComplete={(pattern) => {
