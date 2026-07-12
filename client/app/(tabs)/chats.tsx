@@ -9,11 +9,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import {
-  Gesture,
-  GestureDetector,
-  Pressable as GHPressable,
-} from 'react-native-gesture-handler';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   interpolate,
   runOnJS,
@@ -201,10 +197,20 @@ function DraggableRow({
     <GestureDetector gesture={gesture}>
       <Animated.View style={[styles.rowWrap, animatedStyle]}>
         <Pressable style={styles.card} onPress={() => openChat(user)}>
-          {/* 长按头像置顶;需用 GH 自家 Pressable,普通 Pressable 会被外层手势拦截 */}
-          <GHPressable onLongPress={onPinToggle} delayLongPress={260}>
-            <UserAvatar username={user.username} />
-          </GHPressable>
+          {/* 长按头像置顶:用原生 LongPress 手势,260ms 先于外层拖动的 420ms
+              激活,子手势激活会按 RNGH 标准仲裁取消外层 Pan(GH Pressable 做不到) */}
+          <GestureDetector
+            gesture={Gesture.LongPress()
+              .minDuration(260)
+              .maxDistance(18)
+              .onStart(() => {
+                'worklet';
+                runOnJS(onPinToggle)();
+              })}>
+            <View collapsable={false}>
+              <UserAvatar username={user.username} />
+            </View>
+          </GestureDetector>
           <View style={styles.cardBody}>
             <View style={styles.cardRow}>
               <ThemedText style={styles.cardName} numberOfLines={1}>
@@ -235,9 +241,19 @@ function PinnedCard({ user, onUnpin }: { user: UserSummary; onUnpin: () => void 
     <Pressable
       style={[styles.card, styles.pinnedCard, { borderColor: Colors[scheme].tint }]}
       onPress={() => openChat(user)}>
-      <Pressable onLongPress={onUnpin} delayLongPress={260} hitSlop={4}>
-        <UserAvatar username={user.username} />
-      </Pressable>
+      {/* 与置顶同一套手势:长按头像取消置顶 */}
+      <GestureDetector
+        gesture={Gesture.LongPress()
+          .minDuration(260)
+          .maxDistance(18)
+          .onStart(() => {
+            'worklet';
+            runOnJS(onUnpin)();
+          })}>
+        <View collapsable={false}>
+          <UserAvatar username={user.username} />
+        </View>
+      </GestureDetector>
       <View style={styles.cardBody}>
         <View style={styles.cardRow}>
           <ThemedText style={styles.cardName} numberOfLines={1}>
