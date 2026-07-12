@@ -25,7 +25,6 @@ import type { DiaryEntry, DiaryVisibility } from '@/lib/types';
 import { useAuthStore } from '@/stores/auth-store';
 import { useDiaryStore } from '@/stores/diary-store';
 import { useSettingsStore } from '@/stores/settings-store';
-import { useUiStore } from '@/stores/ui-store';
 
 function parseUtc(iso: string) {
   return new Date(iso.endsWith('Z') || iso.includes('+') ? iso : `${iso}Z`);
@@ -295,10 +294,7 @@ function DiaryList() {
     <ScreenBackground setting={diaryBg}>
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.header}>
-          {/* 点标题呼出/收起左侧导航栏 */}
-          <Pressable onPress={useUiStore.getState().toggleRail} hitSlop={8}>
-            <ThemedText type="title">日记</ThemedText>
-          </Pressable>
+          <ThemedText type="title">日记</ThemedText>
           <View style={styles.headerActions}>
             <Pressable
               style={styles.headerButton}
@@ -462,17 +458,6 @@ function DiaryList() {
           </View>
         </Modal>
 
-        <Pressable
-          style={[
-            styles.fab,
-            {
-              backgroundColor: colorScheme === 'dark' ? '#f4f5f8' : '#ffffff',
-              bottom: insets.bottom + 24,
-            },
-          ]}
-          onPress={() => router.push('/diary-editor')}>
-          <Text style={styles.fabText}>+</Text>
-        </Pressable>
       </View>
     </ScreenBackground>
   );
@@ -598,22 +583,6 @@ const styles = StyleSheet.create({
   },
   actionItemText: { fontSize: 15, fontWeight: '600' },
   actionDelete: { color: '#ca4543' },
-  fab: {
-    position: 'absolute',
-    right: 28,
-    bottom: 34,
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 6,
-    shadowColor: '#000',
-    shadowOpacity: 0.24,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 5 },
-  },
-  fabText: { color: '#0b0c12', fontSize: 42, lineHeight: 48, fontWeight: '300' },
   lockOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.55)',

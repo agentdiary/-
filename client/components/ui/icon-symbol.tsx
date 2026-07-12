@@ -26,6 +26,7 @@ const MAPPING = {
   'lock.fill': 'lock',
   'gearshape.fill': 'settings',
   'rectangle.portrait.and.arrow.right': 'logout',
+  'arrow.clockwise': 'refresh',
 } as IconMapping;
 
 /**

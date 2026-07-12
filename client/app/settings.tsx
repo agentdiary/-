@@ -1,4 +1,6 @@
 import { router } from 'expo-router';
+import * as Updates from 'expo-updates';
+import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -8,9 +10,39 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/stores/auth-store';
 
+// 手动改:每次发 OTA 前 +1,真机在设置页看这个号确认更新到没到
+const APP_VERSION = 'v3.5';
+
 export default function SettingsScreen() {
   const scheme = useColorScheme() ?? 'light';
   const { username, logout } = useAuthStore();
+  const [checking, setChecking] = useState(false);
+
+  const checkUpdate = async () => {
+    if (checking) return;
+    // 开发模式(expo start)没有 updates 运行时,直接跳过
+    if (!Updates.isEnabled) {
+      Alert.alert('开发模式', '当前不是发布版,无法检查 OTA 更新。');
+      return;
+    }
+    setChecking(true);
+    try {
+      const result = await Updates.checkForUpdateAsync();
+      if (result.isAvailable) {
+        await Updates.fetchUpdateAsync();
+        Alert.alert('新版本已下载', '重启应用即可生效。', [
+          { text: '稍后' },
+          { text: '立即重启', onPress: () => Updates.reloadAsync() },
+        ]);
+      } else {
+        Alert.alert('已是最新版本', `当前 ${APP_VERSION}`);
+      }
+    } catch (e) {
+      Alert.alert('检查更新失败', e instanceof Error ? e.message : String(e));
+    } finally {
+      setChecking(false);
+    }
+  };
 
   const confirmLogout = () => {
     Alert.alert('退出登录?', '本机的离线日记队列会保留,下次登录后继续同步。', [
@@ -54,6 +86,14 @@ export default function SettingsScreen() {
         <ThemedText style={styles.rowText}>手势锁图案</ThemedText>
       </Pressable>
 
+      <Pressable style={styles.rowItem} onPress={checkUpdate}>
+        <IconSymbol size={20} name="arrow.clockwise" color={Colors[scheme].icon} />
+        <ThemedText style={styles.rowText}>
+          {checking ? '正在检查更新...' : '检查更新'}
+        </ThemedText>
+        <ThemedText style={styles.versionText}>{APP_VERSION}</ThemedText>
+      </Pressable>
+
       <Pressable style={[styles.rowItem, styles.logoutItem]} onPress={confirmLogout}>
         <IconSymbol size={20} name="rectangle.portrait.and.arrow.right" color="#ca4543" />
         <Text style={[styles.rowText, styles.logoutText]}>退出登录</Text>
@@ -93,6 +133,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(127,127,127,0.08)',
   },
   rowText: { fontSize: 15, fontWeight: '600' },
+  versionText: { fontSize: 12, opacity: 0.45, marginLeft: 'auto' },
   logoutItem: { marginTop: 14, backgroundColor: 'rgba(202,69,67,0.10)' },
   logoutText: { color: '#ca4543' },
 });

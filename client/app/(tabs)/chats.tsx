@@ -35,7 +35,6 @@ import { avatarColor, CELEBRITY_PORTRAITS } from '@/lib/celebrity-portraits';
 import { kvGet, kvSet } from '@/lib/kv';
 import type { UserSummary } from '@/lib/types';
 import { useAuthStore } from '@/stores/auth-store';
-import { useUiStore } from '@/stores/ui-store';
 
 // 用户自定义的会话列表排序(仅本机显示顺序,长按拖动调整)
 const ORDER_KEY = 'agentdiary_discover_order';
@@ -262,7 +261,6 @@ export default function ChatsScreen() {
   const [pins, setPins] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const toggleRail = useUiStore((s) => s.toggleRail);
 
   const positions = useSharedValue<Record<string, number>>({});
 
@@ -346,10 +344,7 @@ export default function ChatsScreen() {
   return (
     <ThemedView style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        {/* 点标题呼出/收起左侧导航栏 */}
-        <Pressable onPress={toggleRail} hitSlop={8}>
-          <ThemedText type="title">对话</ThemedText>
-        </Pressable>
+        <ThemedText type="title">对话</ThemedText>
         <ThemedText style={styles.subtitle}>
           点按去聊天;长按头像置顶;长按卡片拖动排序
         </ThemedText>

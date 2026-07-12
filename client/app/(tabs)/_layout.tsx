@@ -1,105 +1,145 @@
-import { router } from 'expo-router';
+import { router, usePathname } from 'expo-router';
 import { TabList, TabSlot, TabTrigger, Tabs } from 'expo-router/ui';
-import React, { type ComponentProps } from 'react';
+import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useUiStore } from '@/stores/ui-store';
 
-// 自绘常驻左侧栏:material 侧边变体在窄屏真机上会自动收起,
-// 改用 headless tabs(expo-router/ui)完全接管布局,栏永远可见。
-// 注意:TabTrigger 必须放在「作为 Tabs 直接子节点的 TabList」里,
-// 包一层 View 会让 trigger 解析不到 → navigator 零屏幕 → 启动即崩
-const RAIL_WIDTH = 74;
-
-type RailButtonProps = ComponentProps<typeof Pressable> & {
-  icon: ComponentProps<typeof IconSymbol>['name'];
-  label: string;
-  isFocused?: boolean;
-};
-
-// TabTrigger asChild 会把 onPress/isFocused 注入到这个组件
-function RailButton({ icon, label, isFocused, ...rest }: RailButtonProps) {
-  const scheme = useColorScheme() ?? 'light';
-  const color = isFocused ? Colors[scheme].tint : Colors[scheme].icon;
-  return (
-    <Pressable {...rest} style={styles.item} hitSlop={6}>
-      <IconSymbol size={26} name={icon} color={color} />
-      <Text style={[styles.label, { color, fontWeight: isFocused ? '700' : '600' }]}>
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
+// 导航收进右下角 + 号:点按写日记,长按弹出 日记/对话/设置 菜单。
+// TabList 仍必须挂在 Tabs 下(display:none 隐藏):trigger 一旦不在
+// children 里,navigator 零屏幕会启动即崩(v3.1 的教训);实际跳转走 router。
+const MENU_ITEMS = [
+  { key: '/', label: '日记', icon: 'book.fill' as const },
+  { key: '/chats', label: '对话', icon: 'bubble.left.and.bubble.right.fill' as const },
+  { key: '/settings', label: '设置', icon: 'gearshape.fill' as const },
+];
 
 export default function TabLayout() {
   const scheme = useColorScheme() ?? 'light';
   const insets = useSafeAreaInsets();
   const dark = scheme === 'dark';
-  const railVisible = useUiStore((s) => s.railVisible);
-  const hideRail = useUiStore((s) => s.hideRail);
+  const pathname = usePathname();
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const go = (key: string) => {
+    setMenuOpen(false);
+    if (key === pathname) return;
+    if (key === '/settings') {
+      router.push('/settings');
+    } else {
+      // tab 间切换:navigate 会命中 tab 路由器的 switch,replace 在
+      // headless tabs 下切不动(实测)
+      router.navigate(key as '/' | '/chats');
+    }
+  };
 
   return (
-    <Tabs style={styles.root}>
-      {/* 收起时用 display:none 而不是条件渲染:TabList 一旦不在 children 里,
-          trigger 解析不到会让 navigator 零屏幕直接崩(v3.1 的教训) */}
-      <TabList
+    // FAB/菜单必须是 Tabs 的兄弟而非子节点:Tabs 会把非 TabList/TabSlot
+    // 的子节点塞进一条 0×0 的包装链,绝对定位会整个跑出屏幕
+    <View style={styles.root}>
+      <Tabs style={styles.root}>
+        <TabList style={styles.hiddenTabList}>
+          <TabTrigger name="index" href="/" />
+          <TabTrigger name="chats" href="/chats" />
+        </TabList>
+        <TabSlot style={styles.slot} />
+      </Tabs>
+
+      {/* 全局悬浮 + 号:点按写日记,长按呼出导航菜单 */}
+      <Pressable
         style={[
-          styles.rail,
+          styles.fab,
           {
-            paddingTop: insets.top + 14,
-            paddingBottom: insets.bottom + 14,
-            paddingLeft: insets.left,
-            backgroundColor: dark ? 'rgba(21,23,24,0.96)' : 'rgba(248,249,251,0.96)',
+            backgroundColor: dark ? '#f4f5f8' : '#ffffff',
+            bottom: insets.bottom + 24,
           },
-          !railVisible && styles.railHidden,
-        ]}>
-        <TabTrigger name="index" href="/" asChild>
-          <RailButton icon="book.fill" label="日记" />
-        </TabTrigger>
-        <TabTrigger name="chats" href="/chats" asChild>
-          <RailButton icon="bubble.left.and.bubble.right.fill" label="对话" />
-        </TabTrigger>
+        ]}
+        onPress={() => router.push('/diary-editor')}
+        onLongPress={() => setMenuOpen(true)}
+        delayLongPress={280}>
+        <Text style={styles.fabText}>+</Text>
+      </Pressable>
 
-        {/* 空白区点按收起左栏 */}
-        <Pressable style={styles.spacer} onPress={hideRail} />
-
-        {/* 设置(账号信息/退出登录)固定在栏底;非 trigger 子节点只渲染不参与路由 */}
-        <Pressable style={styles.item} hitSlop={6} onPress={() => router.push('/settings')}>
-          <IconSymbol size={25} name="gearshape.fill" color={Colors[scheme].icon} />
-          <Text style={[styles.label, { color: Colors[scheme].icon }]}>设置</Text>
+      {/* 导航菜单:普通绝对定位覆盖层,不用 RN Modal——tabs 布局本身全屏,
+          覆盖层足够;Modal 的 portal 在 web 上还会吞事件 */}
+      {menuOpen && (
+        <Pressable style={styles.menuOverlay} onPress={() => setMenuOpen(false)}>
+          <View
+            style={[
+              styles.menuPanel,
+              {
+                bottom: insets.bottom + 24 + 84,
+                backgroundColor: dark ? '#1c1e22' : '#fff',
+              },
+            ]}>
+            {MENU_ITEMS.map((item) => {
+              const active = pathname === item.key;
+              const color = active ? Colors[scheme].tint : Colors[scheme].icon;
+              return (
+                <Pressable key={item.key} style={styles.menuItem} onPress={() => go(item.key)}>
+                  <IconSymbol size={22} name={item.icon} color={color} />
+                  <Text
+                    style={[
+                      styles.menuLabel,
+                      { color: active ? Colors[scheme].tint : Colors[scheme].text },
+                      active && styles.menuLabelActive,
+                    ]}>
+                    {item.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </Pressable>
-      </TabList>
-      <TabSlot style={styles.slot} />
-    </Tabs>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  // Tabs 的 style 会整体覆盖其默认样式,flex:1 必须自带
-  root: { flex: 1, flexDirection: 'row' },
-  rail: {
-    // 覆盖 TabList 默认的 row/space-between
-    flexDirection: 'column',
-    justifyContent: 'flex-start',
-    alignItems: 'center',
-    width: RAIL_WIDTH,
-    borderRightWidth: StyleSheet.hairlineWidth,
-    borderRightColor: 'rgba(127,127,127,0.25)',
-  },
-  railHidden: { display: 'none' },
-  spacer: { flex: 1, alignSelf: 'stretch' },
-  item: {
-    width: RAIL_WIDTH,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    gap: 3,
-  },
-  // 显式 lineHeight:安卓对小号粗体的默认行高偏紧,会裁掉字底
-  label: { fontSize: 11, lineHeight: 15 },
+  root: { flex: 1 },
+  hiddenTabList: { display: 'none' },
   slot: { flex: 1 },
+  fab: {
+    position: 'absolute',
+    right: 28,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOpacity: 0.24,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+  },
+  fabText: { color: '#0b0c12', fontSize: 42, lineHeight: 48, fontWeight: '300' },
+  menuOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.35)' },
+  menuPanel: {
+    position: 'absolute',
+    right: 28,
+    minWidth: 168,
+    borderRadius: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    minHeight: 52,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+  },
+  menuLabel: { fontSize: 16, fontWeight: '600' },
+  menuLabelActive: { fontWeight: '800' },
 });
