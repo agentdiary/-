@@ -40,6 +40,7 @@ import type { DiaryEntry, DiaryVisibility } from '@/lib/types';
 import { useAuthStore } from '@/stores/auth-store';
 import { useDiaryStore } from '@/stores/diary-store';
 import { useSettingsStore } from '@/stores/settings-store';
+import { useUiStore } from '@/stores/ui-store';
 
 function parseUtc(iso: string) {
   return new Date(iso.endsWith('Z') || iso.includes('+') ? iso : `${iso}Z`);
@@ -153,7 +154,10 @@ function DiaryList() {
     <ScreenBackground setting={diaryBg}>
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.header}>
-          <ThemedText type="title">日记</ThemedText>
+          {/* 点标题呼出/收起左侧导航栏 */}
+          <Pressable onPress={useUiStore.getState().toggleRail} hitSlop={8}>
+            <ThemedText type="title">日记</ThemedText>
+          </Pressable>
           <View style={styles.headerActions}>
             <Pressable
               style={styles.headerButton}

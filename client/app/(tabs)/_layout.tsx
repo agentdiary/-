@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useUiStore } from '@/stores/ui-store';
 
 // 自绘常驻左侧栏:material 侧边变体在窄屏真机上会自动收起,
 // 改用 headless tabs(expo-router/ui)完全接管布局,栏永远可见。
@@ -38,9 +39,13 @@ export default function TabLayout() {
   const scheme = useColorScheme() ?? 'light';
   const insets = useSafeAreaInsets();
   const dark = scheme === 'dark';
+  const railVisible = useUiStore((s) => s.railVisible);
+  const hideRail = useUiStore((s) => s.hideRail);
 
   return (
     <Tabs style={styles.root}>
+      {/* 收起时用 display:none 而不是条件渲染:TabList 一旦不在 children 里,
+          trigger 解析不到会让 navigator 零屏幕直接崩(v3.1 的教训) */}
       <TabList
         style={[
           styles.rail,
@@ -50,6 +55,7 @@ export default function TabLayout() {
             paddingLeft: insets.left,
             backgroundColor: dark ? 'rgba(21,23,24,0.96)' : 'rgba(248,249,251,0.96)',
           },
+          !railVisible && styles.railHidden,
         ]}>
         <TabTrigger name="index" href="/" asChild>
           <RailButton icon="book.fill" label="日记" />
@@ -58,7 +64,8 @@ export default function TabLayout() {
           <RailButton icon="bubble.left.and.bubble.right.fill" label="对话" />
         </TabTrigger>
 
-        <View style={styles.spacer} />
+        {/* 空白区点按收起左栏 */}
+        <Pressable style={styles.spacer} onPress={hideRail} />
 
         {/* 设置(账号信息/退出登录)固定在栏底;非 trigger 子节点只渲染不参与路由 */}
         <Pressable style={styles.item} hitSlop={6} onPress={() => router.push('/settings')}>
@@ -83,7 +90,8 @@ const styles = StyleSheet.create({
     borderRightWidth: StyleSheet.hairlineWidth,
     borderRightColor: 'rgba(127,127,127,0.25)',
   },
-  spacer: { flex: 1 },
+  railHidden: { display: 'none' },
+  spacer: { flex: 1, alignSelf: 'stretch' },
   item: {
     width: RAIL_WIDTH,
     alignItems: 'center',

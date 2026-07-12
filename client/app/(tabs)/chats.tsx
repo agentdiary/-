@@ -9,7 +9,11 @@ import {
   Text,
   View,
 } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import {
+  Gesture,
+  GestureDetector,
+  Pressable as GHPressable,
+} from 'react-native-gesture-handler';
 import Animated, {
   interpolate,
   runOnJS,
@@ -31,9 +35,12 @@ import { avatarColor, CELEBRITY_PORTRAITS } from '@/lib/celebrity-portraits';
 import { kvGet, kvSet } from '@/lib/kv';
 import type { UserSummary } from '@/lib/types';
 import { useAuthStore } from '@/stores/auth-store';
+import { useUiStore } from '@/stores/ui-store';
 
 // 用户自定义的会话列表排序(仅本机显示顺序,长按拖动调整)
 const ORDER_KEY = 'agentdiary_discover_order';
+// 置顶的用户 id 列表(仅本机;长按头像切换)
+const PIN_KEY = 'agentdiary_chat_pins';
 
 // 固定行高:自绘排序依赖等高行(卡片 84 + 间距 14)
 const CARD_HEIGHT = 84;
@@ -47,6 +54,15 @@ const SPRING = { damping: 22, stiffness: 220 };
 async function loadOrder(): Promise<string[]> {
   try {
     const raw = await kvGet(ORDER_KEY);
+    return raw ? (JSON.parse(raw) as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+async function loadPins(): Promise<string[]> {
+  try {
+    const raw = await kvGet(PIN_KEY);
     return raw ? (JSON.parse(raw) as string[]) : [];
   } catch {
     return [];
@@ -90,12 +106,14 @@ function DraggableRow({
   count,
   positions,
   onReorder,
+  onPinToggle,
 }: {
   user: UserSummary;
   count: number;
   // id → 槽位序号,全程在 UI 线程读写,排序过程不触发 React 重渲染(防闪烁的关键)
   positions: SharedValue<Record<string, number>>;
   onReorder: (positions: Record<string, number>) => void;
+  onPinToggle: () => void;
 }) {
   const active = useSharedValue(false);
   const x = useSharedValue(0);
@@ -113,9 +131,9 @@ function DraggableRow({
     },
   );
 
-  // 长按后上下拖动排序
+  // 长按后上下拖动排序(比头像长按置顶的 260ms 晚,避免抢手势)
   const reorderGesture = Gesture.Pan()
-    .activateAfterLongPress(250)
+    .activateAfterLongPress(420)
     .onStart(() => {
       active.value = true;
       dragStartTop.value = top.value;
@@ -184,7 +202,10 @@ function DraggableRow({
     <GestureDetector gesture={gesture}>
       <Animated.View style={[styles.rowWrap, animatedStyle]}>
         <Pressable style={styles.card} onPress={() => openChat(user)}>
-          <UserAvatar username={user.username} />
+          {/* 长按头像置顶;需用 GH 自家 Pressable,普通 Pressable 会被外层手势拦截 */}
+          <GHPressable onLongPress={onPinToggle} delayLongPress={260}>
+            <UserAvatar username={user.username} />
+          </GHPressable>
           <View style={styles.cardBody}>
             <View style={styles.cardRow}>
               <ThemedText style={styles.cardName} numberOfLines={1}>
@@ -208,23 +229,54 @@ function DraggableRow({
   );
 }
 
+// 置顶卡片:样式对齐「我的化身」(描边突出),长按头像取消置顶
+function PinnedCard({ user, onUnpin }: { user: UserSummary; onUnpin: () => void }) {
+  const scheme = useColorScheme() ?? 'light';
+  return (
+    <Pressable
+      style={[styles.card, styles.pinnedCard, { borderColor: Colors[scheme].tint }]}
+      onPress={() => openChat(user)}>
+      <Pressable onLongPress={onUnpin} delayLongPress={260} hitSlop={4}>
+        <UserAvatar username={user.username} />
+      </Pressable>
+      <View style={styles.cardBody}>
+        <View style={styles.cardRow}>
+          <ThemedText style={styles.cardName} numberOfLines={1}>
+            {user.username}
+          </ThemedText>
+          <ThemedText style={styles.cardMeta}>已置顶</ThemedText>
+        </View>
+        <ThemedText style={styles.cardHint} numberOfLines={1}>
+          {user.status ? `今日:${user.status}` : '去和 TA 的化身聊聊 →'}
+        </ThemedText>
+      </View>
+    </Pressable>
+  );
+}
+
 export default function ChatsScreen() {
   const insets = useSafeAreaInsets();
   const scheme = useColorScheme() ?? 'light';
   const { token, username, userId } = useAuthStore();
   const [users, setUsers] = useState<UserSummary[]>([]);
+  const [pins, setPins] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const toggleRail = useUiStore((s) => s.toggleRail);
 
   const positions = useSharedValue<Record<string, number>>({});
 
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [list, order] = await Promise.all([api.listUsers(), loadOrder()]);
+      const [list, order, savedPins] = await Promise.all([
+        api.listUsers(),
+        loadOrder(),
+        loadPins(),
+      ]);
       const sorted = applyOrder(list, order);
-      positions.value = Object.fromEntries(sorted.map((u, i) => [u.id, i]));
       setUsers(sorted);
+      setPins(savedPins.filter((id) => list.some((u) => u.id === id)));
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -246,20 +298,45 @@ export default function ChatsScreen() {
     // 不 setState:布局完全由共享值驱动,避免松手后的重渲染闪烁
   }, []);
 
+  const togglePin = useCallback((id: string) => {
+    setPins((prev) => {
+      const next = prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id];
+      kvSet(PIN_KEY, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+  }, []);
+
+  // 置顶的固定在上方(按置顶先后),其余进可拖动排序的列表
+  const pinnedUsers = useMemo(
+    () =>
+      pins
+        .map((id) => users.find((u) => u.id === id))
+        .filter((u): u is UserSummary => u !== undefined),
+    [pins, users],
+  );
+  const others = useMemo(() => users.filter((u) => !pins.includes(u.id)), [pins, users]);
+
+  // 置顶集合变化后重建槽位表(共享值,不触发行组件重挂载)
+  useEffect(() => {
+    positions.value = Object.fromEntries(others.map((u, i) => [u.id, i]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [others]);
+
   // users 的 id 集合稳定时,行组件不因排序重挂载
   const rows = useMemo(
     () =>
-      users.map((u) => (
+      others.map((u) => (
         <DraggableRow
           key={u.id}
           user={u}
-          count={users.length}
+          count={others.length}
           positions={positions}
           onReorder={onReorder}
+          onPinToggle={() => togglePin(u.id)}
         />
       )),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [users, onReorder],
+    [others, onReorder, togglePin],
   );
 
   if (!token) {
@@ -269,8 +346,13 @@ export default function ChatsScreen() {
   return (
     <ThemedView style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <ThemedText type="title">对话</ThemedText>
-        <ThemedText style={styles.subtitle}>点按去聊天;长按拖动调整顺序</ThemedText>
+        {/* 点标题呼出/收起左侧导航栏 */}
+        <Pressable onPress={toggleRail} hitSlop={8}>
+          <ThemedText type="title">对话</ThemedText>
+        </Pressable>
+        <ThemedText style={styles.subtitle}>
+          点按去聊天;长按头像置顶;长按卡片拖动排序
+        </ThemedText>
       </View>
 
       {/* 我的化身:固定置顶,不参与拖动排序 */}
@@ -296,17 +378,23 @@ export default function ChatsScreen() {
         </View>
       </Pressable>
 
+      {pinnedUsers.map((u) => (
+        <PinnedCard key={u.id} user={u} onUnpin={() => togglePin(u.id)} />
+      ))}
+
       {error && <Text style={styles.error}>{error}</Text>}
 
       <ScrollView
         refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} />}
         contentContainerStyle={
-          users.length === 0
+          others.length === 0
             ? styles.emptyContainer
-            : { height: users.length * ITEM_HEIGHT + ROW_GAP + insets.bottom + 20 }
+            : { height: others.length * ITEM_HEIGHT + ROW_GAP + insets.bottom + 20 }
         }>
-        {users.length === 0 && !loading ? (
-          <ThemedText style={styles.emptyText}>还没有其他用户。</ThemedText>
+        {others.length === 0 && !loading ? (
+          <ThemedText style={styles.emptyText}>
+            {users.length === 0 ? '还没有其他用户。' : '都被你置顶了。'}
+          </ThemedText>
         ) : (
           rows
         )}
@@ -343,6 +431,12 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     marginBottom: ROW_GAP,
     borderWidth: 1,
+  },
+  pinnedCard: {
+    marginHorizontal: 20,
+    marginBottom: ROW_GAP,
+    borderWidth: 1,
+    opacity: 0.98,
   },
   avatar: {
     width: 48,
