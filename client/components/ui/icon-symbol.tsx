@@ -24,6 +24,8 @@ const MAPPING = {
   'paintbrush.fill': 'brush',
   calendar: 'calendar-today',
   'lock.fill': 'lock',
+  'gearshape.fill': 'settings',
+  'rectangle.portrait.and.arrow.right': 'logout',
 } as IconMapping;
 
 /**

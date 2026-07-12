@@ -211,7 +211,7 @@ function DraggableRow({
 export default function ChatsScreen() {
   const insets = useSafeAreaInsets();
   const scheme = useColorScheme() ?? 'light';
-  const { token, username, userId, logout } = useAuthStore();
+  const { token, username, userId } = useAuthStore();
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -269,13 +269,8 @@ export default function ChatsScreen() {
   return (
     <ThemedView style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <View>
-          <ThemedText type="title">对话</ThemedText>
-          <ThemedText style={styles.subtitle}>点按去聊天;长按拖动调整顺序</ThemedText>
-        </View>
-        <Pressable onPress={logout}>
-          <ThemedText style={styles.logout}>{username} · 退出</ThemedText>
-        </Pressable>
+        <ThemedText type="title">对话</ThemedText>
+        <ThemedText style={styles.subtitle}>点按去聊天;长按拖动调整顺序</ThemedText>
       </View>
 
       {/* 我的化身:固定置顶,不参与拖动排序 */}
@@ -322,16 +317,8 @@ export default function ChatsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    paddingHorizontal: 24,
-    paddingTop: 10,
-    paddingBottom: 12,
-  },
+  header: { paddingHorizontal: 24, paddingTop: 10, paddingBottom: 12 },
   subtitle: { fontSize: 13, opacity: 0.5, marginTop: 4 },
-  logout: { fontSize: 13, opacity: 0.5, marginTop: 8 },
   error: { color: '#c44', paddingHorizontal: 24, paddingBottom: 8 },
   emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   emptyText: { opacity: 0.5 },

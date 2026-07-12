@@ -54,6 +54,10 @@ export default function RootLayout() {
           name="pattern-setup"
           options={{ presentation: 'modal', title: '手势锁' }}
         />
+        <Stack.Screen
+          name="settings"
+          options={{ presentation: 'modal', title: '设置' }}
+        />
         <Stack.Screen name="visit/[userId]" options={{ title: '' }} />
       </Stack>
       <StatusBar style="auto" />
