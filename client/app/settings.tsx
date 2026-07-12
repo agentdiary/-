@@ -22,7 +22,7 @@ import { api, avatarUrl } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth-store';
 
 // 手动改:每次发 OTA 前 +1,真机在设置页看这个号确认更新到没到
-const APP_VERSION = 'v3.8';
+const APP_VERSION = 'v3.9';
 
 export default function SettingsScreen() {
   const scheme = useColorScheme() ?? 'light';
