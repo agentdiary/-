@@ -10,21 +10,6 @@ import {
   Text,
   View,
 } from 'react-native';
-// 手势区域内的按钮必须用 gesture-handler 自家的 Pressable:
-// RNGH 的命中判定基于布局位置而非视觉变换,普通 Pressable 会被滑开的卡片"原位"拦截
-import {
-  Gesture,
-  GestureDetector,
-  Pressable as GHPressable,
-} from 'react-native-gesture-handler';
-import Animated, {
-  Extrapolation,
-  interpolate,
-  runOnJS,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DiaryCalendar, dateKey } from '@/components/diary-calendar';
@@ -87,9 +72,20 @@ const VISIBILITY_OPTIONS: { key: DiaryVisibility; label: string }[] = [
   { key: 'private', label: '自己' },
 ];
 
-const OPEN_X = 132;
-const DELETE_X = -104;
-const COMMIT_THRESHOLD = 92;
+// 便签底色:按 id 哈希取色,低透明度,不压过自定义背景与暗色主题
+const NOTE_TINTS = [
+  'rgba(255, 235, 170, 0.16)',
+  'rgba(180, 220, 255, 0.14)',
+  'rgba(255, 200, 205, 0.13)',
+  'rgba(195, 240, 205, 0.14)',
+  'rgba(230, 210, 255, 0.14)',
+];
+
+function hashCode(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
 
 export default function DiaryListScreen() {
   const token = useAuthStore((s) => s.token);
@@ -97,6 +93,77 @@ export default function DiaryListScreen() {
     return <Redirect href="/login" />;
   }
   return <DiaryList />;
+}
+
+// 便签:一行两张;点按进详情,长按弹操作面板(可见性/加锁/删除)
+function DiaryNote({
+  row,
+  unlocked,
+  onPress,
+  onLongPress,
+}: {
+  row: Row;
+  unlocked: boolean;
+  onPress: () => void;
+  onLongPress: () => void;
+}) {
+  const colorScheme = useColorScheme() ?? 'light';
+  const h = hashCode(row.id);
+  const tint = NOTE_TINTS[h % NOTE_TINTS.length];
+  // 每张便签一点随机倾斜,像随手贴上去的
+  const rotate = ((h % 7) - 3) * 0.5;
+
+  const visibility = row.item.visibility as DiaryVisibility;
+  const label = row.kind === 'pending' ? '待同步' : VISIBILITY_LABEL[visibility];
+  const isLocked = row.kind === 'entry' && row.item.locked;
+  const shouldHideContent = isLocked && !unlocked;
+  const remaining = row.kind === 'entry' ? editRemainingMs(row.item.created_at) : 0;
+
+  return (
+    <Pressable
+      onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={300}
+      style={[
+        styles.note,
+        { backgroundColor: tint, transform: [{ rotateZ: `${rotate}deg` }] },
+      ]}>
+      <View style={styles.noteTop}>
+        <ThemedText style={styles.noteDate}>
+          {formatDate(row.item.created_at).slice(5)}
+        </ThemedText>
+        {isLocked && (
+          <IconSymbol size={12} name="lock.fill" color={Colors[colorScheme].icon} />
+        )}
+      </View>
+      {shouldHideContent ? (
+        <ThemedText style={styles.noteLockedText}>🔒 点按解锁查看</ThemedText>
+      ) : (
+        <ThemedText
+          numberOfLines={6}
+          style={[styles.noteContent, { color: Colors[colorScheme].text }]}>
+          {row.item.content}
+        </ThemedText>
+      )}
+      <View style={styles.noteBottom}>
+        {remaining > 0 ? (
+          <ThemedText style={styles.noteEdit}>⏳{formatRemaining(remaining)}</ThemedText>
+        ) : (
+          <View />
+        )}
+        <ThemedText
+          style={[
+            styles.badge,
+            row.kind === 'pending' && styles.badgePending,
+            visibility === 'public' && styles.badgePublic,
+            visibility === 'restricted' && styles.badgeRestricted,
+            visibility === 'private' && styles.badgePrivate,
+          ]}>
+          {label}
+        </ThemedText>
+      </View>
+    </Pressable>
+  );
 }
 
 function DiaryList() {
@@ -113,6 +180,8 @@ function DiaryList() {
   const [lockGate, setLockGate] = useState<(() => void) | null>(null);
   const [lockError, setLockError] = useState(false);
   const [unlockedDiaryIds, setUnlockedDiaryIds] = useState<Set<string>>(() => new Set());
+  // 长按便签弹出的操作面板
+  const [actionRow, setActionRow] = useState<Row | null>(null);
 
   useEffect(() => {
     refresh();
@@ -148,6 +217,78 @@ function DiaryList() {
         { text: '删除', style: 'destructive', onPress: () => remove(row.id) },
       ],
     );
+  };
+
+  // 加锁/解锁(解锁需先验证图案,锁才不形同虚设)
+  const toggleLock = (row: Row) => {
+    if (row.kind !== 'entry') return;
+    if (!row.item.locked) {
+      if (!lockPattern) {
+        Alert.alert('先设置解锁图案', '加锁前需要先设置一个手势图案。', [
+          { text: '取消', style: 'cancel' },
+          {
+            text: '去设置',
+            onPress: () => router.push({ pathname: '/pattern-setup', params: { mode: 'set' } }),
+          },
+        ]);
+        return;
+      }
+      setLocked(row.id, true)
+        .then(() => {
+          setUnlockedDiaryIds((prev) => {
+            const next = new Set(prev);
+            next.delete(row.id);
+            return next;
+          });
+          Alert.alert('已加锁', '之后打开这篇日记需要先绘制手势图案。');
+        })
+        .catch(() => Alert.alert('加锁失败', '请稍后再试。'));
+    } else {
+      setLockError(false);
+      setLockGate(() => () => {
+        setLocked(row.id, false)
+          .then(() => {
+            setUnlockedDiaryIds((prev) => {
+              const next = new Set(prev);
+              next.delete(row.id);
+              return next;
+            });
+            Alert.alert('已取消加锁');
+          })
+          .catch(() => Alert.alert('解锁失败', '请稍后再试。'));
+      });
+    }
+  };
+
+  const changeVisibility = (row: Row, visibility: DiaryVisibility) => {
+    // 「指定」需要选人:已同步的日记跳白名单选择页;
+    // 未同步的本地日记没有服务器 id,先仅切换档位
+    if (visibility === 'restricted' && row.kind === 'entry') {
+      router.push({ pathname: '/visibility-picker', params: { diaryId: row.id } });
+      return;
+    }
+    setVisibility(row.id, visibility).catch(() => {});
+  };
+
+  const openDetail = (row: Row) => {
+    if (row.kind !== 'entry') return;
+    const go = () => {
+      router.push({
+        pathname: '/diary-editor',
+        params: {
+          diaryId: row.id,
+          initialContent: row.item.content,
+          createdAt: row.item.created_at,
+        },
+      });
+    };
+    // 短按加锁日记:验证通过直接进详情页,锁状态保持不变
+    if (row.item.locked && lockPattern) {
+      setLockError(false);
+      setLockGate(() => go);
+      return;
+    }
+    go();
   };
 
   return (
@@ -200,8 +341,10 @@ function DiaryList() {
 
         <FlatList
           data={rows}
+          numColumns={2}
           keyExtractor={(row) => row.id}
           refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} />}
+          columnWrapperStyle={styles.noteRow}
           contentContainerStyle={[
             styles.listContent,
             rows.length === 0 && styles.emptyContainer,
@@ -215,86 +358,85 @@ function DiaryList() {
             ) : null
           }
           renderItem={({ item }) => (
-            <DiaryRow
+            <DiaryNote
               row={item}
               unlocked={item.kind === 'entry' && unlockedDiaryIds.has(item.id)}
-              onDelete={() => confirmDelete(item)}
-              onPress={() => {
-                if (item.kind !== 'entry') return;
-                const openDetail = () => {
-                  router.push({
-                    pathname: '/diary-editor',
-                    params: {
-                      diaryId: item.id,
-                      initialContent: item.item.content,
-                      createdAt: item.item.created_at,
-                    },
-                  });
-                };
-                // 短按加锁日记:验证通过直接进详情页,锁状态保持不变
-                if (item.item.locked && lockPattern) {
-                  setLockError(false);
-                  setLockGate(() => openDetail);
-                  return;
-                }
-                openDetail();
-              }}
-              onLock={() => {
-                if (item.kind !== 'entry') return;
-                if (!item.item.locked) {
-                  if (!lockPattern) {
-                    Alert.alert('先设置解锁图案', '加锁前需要先设置一个手势图案。', [
-                      { text: '取消', style: 'cancel' },
-                      {
-                        text: '去设置',
-                        onPress: () =>
-                          router.push({ pathname: '/pattern-setup', params: { mode: 'set' } }),
-                      },
-                    ]);
-                    return;
-                  }
-                  setLocked(item.id, true)
-                    .then(() => {
-                      setUnlockedDiaryIds((prev) => {
-                        const next = new Set(prev);
-                        next.delete(item.id);
-                        return next;
-                      });
-                      Alert.alert('已加锁', '之后打开这篇日记需要先绘制手势图案。');
-                    })
-                    .catch(() => Alert.alert('加锁失败', '请稍后再试。'));
-                } else {
-                  // 解锁需要先验证图案,否则锁形同虚设
-                  setLockError(false);
-                  setLockGate(() => () => {
-                    setLocked(item.id, false)
-                      .then(() => {
-                        setUnlockedDiaryIds((prev) => {
-                          const next = new Set(prev);
-                          next.delete(item.id);
-                          return next;
-                        });
-                        Alert.alert('已取消加锁');
-                      })
-                      .catch(() => Alert.alert('解锁失败', '请稍后再试。'));
-                  });
-                }
-              }}
-              onVisibility={(visibility) => {
-                // 「指定」需要选人:已同步的日记跳白名单选择页;
-                // 未同步的本地日记没有服务器 id,先仅切换档位
-                if (visibility === 'restricted' && item.kind === 'entry') {
-                  router.push({
-                    pathname: '/visibility-picker',
-                    params: { diaryId: item.id },
-                  });
-                  return;
-                }
-                setVisibility(item.id, visibility).catch(() => {});
-              }}
+              onPress={() => openDetail(item)}
+              onLongPress={() => setActionRow(item)}
             />
           )}
         />
+
+        {/* 长按便签的操作面板 */}
+        <Modal visible={actionRow !== null} transparent animationType="fade">
+          <Pressable style={styles.actionOverlay} onPress={() => setActionRow(null)}>
+            {/* 内层 Pressable 吃掉点击,避免点面板本体误关闭 */}
+            <Pressable
+              style={[
+                styles.actionPanel,
+                { backgroundColor: colorScheme === 'dark' ? '#1c1e22' : '#fff' },
+              ]}
+              onPress={() => {}}>
+              {actionRow?.kind === 'entry' && (
+                <>
+                  <ThemedText style={styles.actionTitle}>谁能看到这篇</ThemedText>
+                  <View style={styles.actionPills}>
+                    {VISIBILITY_OPTIONS.map((option) => {
+                      const active =
+                        (actionRow.item.visibility as DiaryVisibility) === option.key;
+                      return (
+                        <Pressable
+                          key={option.key}
+                          style={[
+                            styles.actionPill,
+                            active && { backgroundColor: Colors[colorScheme].tint },
+                          ]}
+                          onPress={() => {
+                            const row = actionRow;
+                            setActionRow(null);
+                            changeVisibility(row, option.key);
+                          }}>
+                          <Text
+                            style={[
+                              styles.actionPillText,
+                              active && {
+                                color: colorScheme === 'dark' ? '#151718' : '#fff',
+                              },
+                            ]}>
+                            {option.label}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                  <Pressable
+                    style={styles.actionItem}
+                    onPress={() => {
+                      const row = actionRow;
+                      setActionRow(null);
+                      toggleLock(row);
+                    }}>
+                    <IconSymbol size={17} name="lock.fill" color={Colors[colorScheme].icon} />
+                    <ThemedText style={styles.actionItemText}>
+                      {actionRow.item.locked ? '取消加锁' : '加锁(手势图案)'}
+                    </ThemedText>
+                  </Pressable>
+                </>
+              )}
+              <Pressable
+                style={styles.actionItem}
+                onPress={() => {
+                  const row = actionRow;
+                  setActionRow(null);
+                  if (row) confirmDelete(row);
+                }}>
+                <ThemedText style={[styles.actionItemText, styles.actionDelete]}>
+                  删除这篇日记
+                </ThemedText>
+              </Pressable>
+            </Pressable>
+          </Pressable>
+        </Modal>
 
         {/* 手势锁验证弹层 */}
         <Modal visible={lockGate !== null} transparent animationType="fade">
@@ -336,175 +478,6 @@ function DiaryList() {
   );
 }
 
-function DiaryRow({
-  row,
-  unlocked,
-  onDelete,
-  onPress,
-  onLock,
-  onVisibility,
-}: {
-  row: Row;
-  unlocked: boolean;
-  onDelete: () => void;
-  onPress: () => void;
-  onLock: () => void;
-  onVisibility: (visibility: DiaryVisibility) => void;
-}) {
-  const colorScheme = useColorScheme() ?? 'light';
-  const x = useSharedValue(0);
-  const y = useSharedValue(0);
-  const startX = useSharedValue(0);
-
-  const close = useCallback(() => {
-    x.value = withSpring(0, { damping: 18, stiffness: 220 });
-    y.value = withSpring(0, { damping: 18, stiffness: 220 });
-  }, [x, y]);
-
-  const openDelete = useCallback(() => {
-    x.value = withSpring(DELETE_X, { damping: 18, stiffness: 220 });
-    y.value = withSpring(0, { damping: 18, stiffness: 220 });
-  }, [x, y]);
-
-  const gesture = Gesture.Pan()
-    // 起手距离调大,轻微左右滑不触发(仍保留上下漂移手感)
-    .minDistance(14)
-    .onBegin(() => {
-      startX.value = x.value;
-    })
-    .onUpdate((event) => {
-      x.value = Math.max(Math.min(startX.value + event.translationX, OPEN_X + 18), DELETE_X - 18);
-      y.value = Math.max(Math.min(event.translationY, 18), -18);
-    })
-    .onEnd(() => {
-      if (x.value > COMMIT_THRESHOLD) {
-        x.value = withSpring(OPEN_X, { damping: 18, stiffness: 220 });
-      } else if (x.value < -COMMIT_THRESHOLD) {
-        runOnJS(openDelete)();
-      } else {
-        x.value = withSpring(0, { damping: 18, stiffness: 220 });
-      }
-      y.value = withSpring(0, { damping: 18, stiffness: 220 });
-    });
-
-  const cardStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: x.value }, { translateY: y.value }],
-  }));
-
-  const visibilityStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(x.value, [40, COMMIT_THRESHOLD], [0, 1], Extrapolation.CLAMP),
-    transform: [{ translateX: interpolate(x.value, [0, OPEN_X], [-22, 0], Extrapolation.CLAMP) }],
-  }));
-
-  const deleteStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(-x.value, [40, COMMIT_THRESHOLD], [0, 1], Extrapolation.CLAMP),
-    transform: [{ translateX: interpolate(x.value, [DELETE_X, 0], [0, 22], Extrapolation.CLAMP) }],
-  }));
-
-  const visibility = row.item.visibility as DiaryVisibility;
-  const label = row.kind === 'pending' ? '待同步' : VISIBILITY_LABEL[visibility];
-  const isLocked = row.kind === 'entry' && row.item.locked;
-  const shouldHideContent = isLocked && !unlocked;
-  // 沙漏:24 小时修改窗口的剩余时间;窗口关闭后不显示(日记已定格)
-  const remaining = row.kind === 'entry' ? editRemainingMs(row.item.created_at) : 0;
-
-  return (
-    <View style={styles.rowShell}>
-      <Animated.View
-        pointerEvents="box-none"
-        style={[styles.actionLayer, styles.visibilityLayer, visibilityStyle]}>
-        <View style={styles.visibilityPanel}>
-          {VISIBILITY_OPTIONS.map((option) => {
-            const active = visibility === option.key;
-            return (
-              <GHPressable
-                key={option.key}
-                style={[styles.visibilityPill, active && styles.visibilityPillActive]}
-                onPress={() => {
-                  onVisibility(option.key);
-                  close();
-                }}>
-                <Text style={[styles.visibilityPillText, active && styles.visibilityPillTextActive]}>
-                  {option.label}
-                </Text>
-              </GHPressable>
-            );
-          })}
-        </View>
-      </Animated.View>
-
-      <Animated.View
-        pointerEvents="box-none"
-        style={[styles.actionLayer, styles.deleteLayer, deleteStyle]}>
-        <GHPressable
-          style={styles.deleteButton}
-          onPress={() => {
-            close();
-            onDelete();
-          }}>
-          <Text style={styles.deleteText}>删除</Text>
-        </GHPressable>
-      </Animated.View>
-
-      <GestureDetector gesture={gesture}>
-        <Animated.View style={cardStyle}>
-          <Pressable
-            onPress={onPress}
-            onLongPress={() => {
-              close();
-              onLock();
-            }}
-            style={styles.card}>
-            <View style={styles.cardTop}>
-              <View style={styles.cardTopLeft}>
-                <ThemedText style={styles.cardDate}>{formatDate(row.item.created_at)}</ThemedText>
-                {remaining > 0 && (
-                  <ThemedText style={styles.editWindow}>⏳{formatRemaining(remaining)}</ThemedText>
-                )}
-              </View>
-              <View style={styles.cardTopRight}>
-                {isLocked && (
-                  <GHPressable
-                    style={styles.lockButton}
-                    onPress={() => {
-                      onLock();
-                    }}>
-                    <IconSymbol size={15} name="lock.fill" color={Colors[colorScheme].icon} />
-                  </GHPressable>
-                )}
-                <ThemedText
-                  style={[
-                    styles.badge,
-                    row.kind === 'pending' && styles.badgePending,
-                    visibility === 'public' && styles.badgePublic,
-                    visibility === 'restricted' && styles.badgeRestricted,
-                    visibility === 'private' && styles.badgePrivate,
-                  ]}>
-                  {label}
-                </ThemedText>
-              </View>
-            </View>
-            {shouldHideContent ? (
-              <ThemedText style={styles.lockedPreview}>🔒 已加锁的日记,点按解锁查看</ThemedText>
-            ) : (
-              <View style={styles.paperBody}>
-                <View style={[styles.paperLine, styles.paperLineOne]} />
-                <View style={[styles.paperLine, styles.paperLineTwo]} />
-                <View style={[styles.paperLine, styles.paperLineThree]} />
-                <ThemedText
-                  numberOfLines={5}
-                  style={[styles.cardContent, { color: Colors[colorScheme].text }]}>
-                  {row.item.content}
-                </ThemedText>
-              </View>
-            )}
-          </Pressable>
-        </Animated.View>
-      </GestureDetector>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
@@ -543,110 +516,88 @@ const styles = StyleSheet.create({
   },
   statusText: { fontSize: 20, fontWeight: '600', opacity: 0.78 },
   error: { color: '#d47a2d', paddingHorizontal: 24, paddingBottom: 8, fontSize: 12 },
-  listContent: { paddingTop: 8 },
+  listContent: { paddingTop: 8, paddingHorizontal: 16 },
   emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   emptyText: { opacity: 0.55, paddingHorizontal: 42, textAlign: 'center', lineHeight: 22 },
-  rowShell: {
-    marginHorizontal: 20,
-    marginVertical: 7,
-    minHeight: 112,
-    justifyContent: 'center',
-  },
-  actionLayer: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-  },
-  visibilityLayer: { alignItems: 'flex-start' },
-  deleteLayer: { alignItems: 'flex-end' },
-  visibilityPanel: {
-    width: 122,
-    gap: 6,
-    padding: 8,
-    borderRadius: 18,
-    backgroundColor: 'rgba(89, 139, 180, 0.26)',
-  },
-  visibilityPill: {
-    minHeight: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
+  // 一行两张便签
+  noteRow: { gap: 12, marginBottom: 12 },
+  note: {
+    flex: 1,
+    height: 172,
     borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-  },
-  visibilityPillActive: { backgroundColor: '#f4f7fb' },
-  visibilityPillText: { color: '#f4f7fb', fontSize: 12, fontWeight: '700' },
-  visibilityPillTextActive: { color: '#21364d' },
-  deleteButton: {
-    width: 88,
-    minHeight: 86,
-    borderRadius: 18,
-    backgroundColor: 'rgba(202, 69, 67, 0.92)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  deleteText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  card: {
-    minHeight: 104,
-    paddingHorizontal: 18,
-    paddingVertical: 16,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255, 252, 243, 0.16)',
+    paddingHorizontal: 13,
+    paddingVertical: 12,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255, 250, 235, 0.20)',
+    borderColor: 'rgba(255, 250, 235, 0.22)',
     shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.10,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
     elevation: 1,
   },
-  cardTop: {
+  noteTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 12,
-    marginBottom: 10,
+    marginBottom: 7,
   },
-  cardDate: { fontSize: 14, opacity: 0.5 },
-  cardTopLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  cardTopRight: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 0 },
-  editWindow: { fontSize: 12, opacity: 0.55 },
-  paperBody: {
-    position: 'relative',
-    overflow: 'hidden',
-    borderRadius: 10,
-    paddingTop: 2,
-  },
-  paperLine: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: 'rgba(127, 127, 127, 0.11)',
-  },
-  paperLineOne: { top: 29 },
-  paperLineTwo: { top: 56 },
-  paperLineThree: { top: 83 },
-  cardContent: { fontSize: 19, lineHeight: 27, textShadowColor: 'rgba(255,255,255,0.10)', textShadowRadius: 0.5 },
-  lockedPreview: { fontSize: 15, opacity: 0.5, paddingVertical: 8 },
-  lockButton: {
-    minHeight: 25,
-    paddingHorizontal: 9,
-    justifyContent: 'center',
+  noteDate: { fontSize: 12, opacity: 0.5, lineHeight: 16 },
+  noteContent: { flex: 1, fontSize: 14, lineHeight: 19 },
+  noteLockedText: { flex: 1, fontSize: 13, opacity: 0.5, paddingTop: 6, lineHeight: 19 },
+  noteBottom: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    borderRadius: 11,
-    backgroundColor: 'rgba(127,127,127,0.13)',
+    marginTop: 8,
   },
+  noteEdit: { fontSize: 11, opacity: 0.55, lineHeight: 14 },
   badge: {
     overflow: 'hidden',
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    borderRadius: 11,
-    fontSize: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    fontSize: 11,
+    lineHeight: 14,
     fontWeight: '700',
   },
   badgePublic: { color: '#6fc6a5', backgroundColor: 'rgba(111,198,165,0.12)' },
   badgeRestricted: { color: '#78aee5', backgroundColor: 'rgba(120,174,229,0.15)' },
   badgePrivate: { color: '#a9a9b8', backgroundColor: 'rgba(169,169,184,0.14)' },
   badgePending: { color: '#d89b3d', backgroundColor: 'rgba(216,155,61,0.15)' },
+  // 长按操作面板
+  actionOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 16,
+    paddingBottom: 34,
+  },
+  actionPanel: {
+    borderRadius: 22,
+    paddingVertical: 18,
+    paddingHorizontal: 18,
+    gap: 4,
+  },
+  actionTitle: { fontSize: 13, opacity: 0.55, marginBottom: 8 },
+  actionPills: { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  actionPill: {
+    flex: 1,
+    minHeight: 38,
+    borderRadius: 19,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(127,127,127,0.13)',
+  },
+  actionPillText: { fontSize: 14, fontWeight: '600', color: 'rgba(127,127,127,0.95)' },
+  actionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    minHeight: 46,
+    paddingHorizontal: 4,
+  },
+  actionItemText: { fontSize: 15, fontWeight: '600' },
+  actionDelete: { color: '#ca4543' },
   fab: {
     position: 'absolute',
     right: 28,
