@@ -10,6 +10,12 @@ import {
   Text,
   View,
 } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DiaryCalendar, dateKey } from '@/components/diary-calendar';
@@ -86,6 +92,12 @@ function hashCode(s: string): number {
   return Math.abs(h);
 }
 
+// 浮动手感:参数沿用旧长条卡片(OPEN_X+18 / DELETE_X-18 / y±18 / 同一 spring)
+const DRIFT_RIGHT = 150;
+const DRIFT_LEFT = -122;
+const DRIFT_Y = 18;
+const DRIFT_SPRING = { damping: 18, stiffness: 220 };
+
 export default function DiaryListScreen() {
   const token = useAuthStore((s) => s.token);
   if (!token) {
@@ -112,6 +124,39 @@ function DiaryNote({
   // 每张便签一点随机倾斜,像随手贴上去的
   const rotate = ((h % 7) - 3) * 0.5;
 
+  // 浮动:拖动跟手、松手回弹(纯手感、无功能);起手 14px 内不抢点按/长按
+  const x = useSharedValue(0);
+  const y = useSharedValue(0);
+  const startX = useSharedValue(0);
+
+  const drift = Gesture.Pan()
+    .minDistance(14)
+    .onBegin(() => {
+      startX.value = x.value;
+    })
+    .onUpdate((event) => {
+      x.value = Math.max(Math.min(startX.value + event.translationX, DRIFT_RIGHT), DRIFT_LEFT);
+      y.value = Math.max(Math.min(event.translationY, DRIFT_Y), -DRIFT_Y);
+    })
+    .onEnd(() => {
+      x.value = withSpring(0, DRIFT_SPRING);
+      y.value = withSpring(0, DRIFT_SPRING);
+    })
+    .onFinalize(() => {
+      x.value = withSpring(0, DRIFT_SPRING);
+      y.value = withSpring(0, DRIFT_SPRING);
+    });
+
+  const driftStyle = useAnimatedStyle(() => ({
+    // 拖动中压过邻居,避免被右侧便签盖住
+    zIndex: x.value !== 0 || y.value !== 0 ? 10 : 0,
+    transform: [
+      { translateX: x.value },
+      { translateY: y.value },
+      { rotateZ: `${rotate}deg` },
+    ],
+  }));
+
   const visibility = row.item.visibility as DiaryVisibility;
   const label = row.kind === 'pending' ? '待同步' : VISIBILITY_LABEL[visibility];
   const isLocked = row.kind === 'entry' && row.item.locked;
@@ -119,14 +164,13 @@ function DiaryNote({
   const remaining = row.kind === 'entry' ? editRemainingMs(row.item.created_at) : 0;
 
   return (
-    <Pressable
-      onPress={onPress}
-      onLongPress={onLongPress}
-      delayLongPress={300}
-      style={[
-        styles.note,
-        { backgroundColor: tint, transform: [{ rotateZ: `${rotate}deg` }] },
-      ]}>
+    <GestureDetector gesture={drift}>
+      <Animated.View style={[styles.noteWrap, driftStyle]}>
+        <Pressable
+          onPress={onPress}
+          onLongPress={onLongPress}
+          delayLongPress={300}
+          style={[styles.note, { backgroundColor: tint }]}>
       <View style={styles.noteTop}>
         <ThemedText style={styles.noteDate}>
           {formatDate(row.item.created_at).slice(5)}
@@ -161,7 +205,9 @@ function DiaryNote({
           {label}
         </ThemedText>
       </View>
-    </Pressable>
+        </Pressable>
+      </Animated.View>
+    </GestureDetector>
   );
 }
 
@@ -506,8 +552,8 @@ const styles = StyleSheet.create({
   emptyText: { opacity: 0.55, paddingHorizontal: 42, textAlign: 'center', lineHeight: 22 },
   // 一行两张便签
   noteRow: { gap: 12, marginBottom: 12 },
+  noteWrap: { flex: 1 },
   note: {
-    flex: 1,
     height: 172,
     borderRadius: 14,
     paddingHorizontal: 13,
