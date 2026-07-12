@@ -1,0 +1,18 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "expo-web",
+      "runtimeExecutable": "C:\\Users\\24062\\Downloads\\agentdiary\\utils\\node\\node.exe",
+      "runtimeArgs": [
+        "client/node_modules/expo/bin/cli",
+        "start",
+        "client",
+        "--port",
+        "8099",
+        "--offline"
+      ],
+      "port": 8099
+    }
+  ]
+}

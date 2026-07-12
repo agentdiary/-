@@ -9,7 +9,9 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 // 自绘常驻左侧栏:material 侧边变体在窄屏真机上会自动收起,
-// 改用 headless tabs(expo-router/ui)完全接管布局,栏永远可见
+// 改用 headless tabs(expo-router/ui)完全接管布局,栏永远可见。
+// 注意:TabTrigger 必须放在「作为 Tabs 直接子节点的 TabList」里,
+// 包一层 View 会让 trigger 解析不到 → navigator 零屏幕 → 启动即崩
 const RAIL_WIDTH = 74;
 
 type RailButtonProps = ComponentProps<typeof Pressable> & {
@@ -38,50 +40,49 @@ export default function TabLayout() {
   const dark = scheme === 'dark';
 
   return (
-    <Tabs>
-      <View style={styles.row}>
-        <View
-          style={[
-            styles.rail,
-            {
-              paddingTop: insets.top + 14,
-              paddingBottom: insets.bottom + 14,
-              paddingLeft: insets.left,
-              backgroundColor: dark ? 'rgba(21,23,24,0.96)' : 'rgba(248,249,251,0.96)',
-            },
-          ]}>
-          <TabList style={styles.tabList}>
-            <TabTrigger name="index" href="/" asChild>
-              <RailButton icon="book.fill" label="日记" />
-            </TabTrigger>
-            <TabTrigger name="chats" href="/chats" asChild>
-              <RailButton icon="bubble.left.and.bubble.right.fill" label="对话" />
-            </TabTrigger>
-          </TabList>
+    <Tabs style={styles.root}>
+      <TabList
+        style={[
+          styles.rail,
+          {
+            paddingTop: insets.top + 14,
+            paddingBottom: insets.bottom + 14,
+            paddingLeft: insets.left,
+            backgroundColor: dark ? 'rgba(21,23,24,0.96)' : 'rgba(248,249,251,0.96)',
+          },
+        ]}>
+        <TabTrigger name="index" href="/" asChild>
+          <RailButton icon="book.fill" label="日记" />
+        </TabTrigger>
+        <TabTrigger name="chats" href="/chats" asChild>
+          <RailButton icon="bubble.left.and.bubble.right.fill" label="对话" />
+        </TabTrigger>
 
-          <View style={styles.spacer} />
+        <View style={styles.spacer} />
 
-          {/* 设置(账号信息/退出登录)固定在栏底 */}
-          <Pressable style={styles.item} hitSlop={6} onPress={() => router.push('/settings')}>
-            <IconSymbol size={25} name="gearshape.fill" color={Colors[scheme].icon} />
-            <Text style={[styles.label, { color: Colors[scheme].icon }]}>设置</Text>
-          </Pressable>
-        </View>
-        <TabSlot style={styles.slot} />
-      </View>
+        {/* 设置(账号信息/退出登录)固定在栏底;非 trigger 子节点只渲染不参与路由 */}
+        <Pressable style={styles.item} hitSlop={6} onPress={() => router.push('/settings')}>
+          <IconSymbol size={25} name="gearshape.fill" color={Colors[scheme].icon} />
+          <Text style={[styles.label, { color: Colors[scheme].icon }]}>设置</Text>
+        </Pressable>
+      </TabList>
+      <TabSlot style={styles.slot} />
     </Tabs>
   );
 }
 
 const styles = StyleSheet.create({
-  row: { flex: 1, flexDirection: 'row' },
+  // Tabs 的 style 会整体覆盖其默认样式,flex:1 必须自带
+  root: { flex: 1, flexDirection: 'row' },
   rail: {
-    width: RAIL_WIDTH,
+    // 覆盖 TabList 默认的 row/space-between
+    flexDirection: 'column',
+    justifyContent: 'flex-start',
     alignItems: 'center',
+    width: RAIL_WIDTH,
     borderRightWidth: StyleSheet.hairlineWidth,
     borderRightColor: 'rgba(127,127,127,0.25)',
   },
-  tabList: { flexDirection: 'column', gap: 6 },
   spacer: { flex: 1 },
   item: {
     width: RAIL_WIDTH,
