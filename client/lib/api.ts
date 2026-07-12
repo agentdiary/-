@@ -14,6 +14,11 @@ import type {
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
 
+// 自定义头像 URL;ts(avatar_updated_at)作缓存指纹,换头像后自动刷新
+export function avatarUrl(userId: string, ts: string): string {
+  return `${BASE_URL}/users/${userId}/avatar?t=${encodeURIComponent(ts)}`;
+}
+
 let authToken: string | null = null;
 
 export function setAuthToken(token: string | null) {
@@ -94,6 +99,24 @@ export const api = {
         visibility,
         allowed_user_ids: allowedUserIds,
       }),
+    }),
+
+  changePassword: (oldPassword: string, newPassword: string) =>
+    request<{ ok: boolean }>('/users/me/password', {
+      method: 'PUT',
+      body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }),
+    }),
+
+  changeUsername: (username: string) =>
+    request<{ username: string }>('/users/me/username', {
+      method: 'PUT',
+      body: JSON.stringify({ username }),
+    }),
+
+  uploadAvatar: (imageBase64: string) =>
+    request<{ avatar_updated_at: string }>('/users/me/avatar', {
+      method: 'PUT',
+      body: JSON.stringify({ image_base64: imageBase64 }),
     }),
 
   setStatus: (status: string | null) =>

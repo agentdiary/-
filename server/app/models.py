@@ -29,6 +29,8 @@ class User(SQLModel, table=True):
     # 化身状态(微信状态式):24 小时后自动过期,给化身「今天」的实在感
     status_text: str | None = Field(default=None)
     status_updated_at: datetime | None = Field(default=None)
+    # 自定义头像:文件存 server/avatars/{id}.img,此时间戳兼作客户端缓存指纹
+    avatar_updated_at: datetime | None = Field(default=None)
     created_at: datetime = Field(default_factory=_now)
 
 

@@ -40,6 +40,7 @@ def _migrate(conn) -> None:
         for col, ddl in (
             ("status_text", "ALTER TABLE user ADD COLUMN status_text TEXT"),
             ("status_updated_at", "ALTER TABLE user ADD COLUMN status_updated_at TIMESTAMP"),
+            ("avatar_updated_at", "ALTER TABLE user ADD COLUMN avatar_updated_at TIMESTAMP"),
         ):
             if not _column_exists(conn, "user", col):
                 conn.execute(text(ddl))

@@ -19,6 +19,7 @@ class AuthResponse(BaseModel):
     token: str
     user_id: str
     username: str
+    avatar_updated_at: str | None = None  # 有值 = 有自定义头像(ISO 时间戳,兼作缓存指纹)
 
 
 @router.post("/register")
@@ -47,7 +48,12 @@ def login(
     user = session.exec(select(User).where(User.username == body.username.strip())).first()
     if user is None or not verify_password(body.password, user.password_hash):
         raise HTTPException(status_code=401, detail="用户名或密码错误")
-    return AuthResponse(token=issue_token(session, user), user_id=user.id, username=user.username)
+    return AuthResponse(
+        token=issue_token(session, user),
+        user_id=user.id,
+        username=user.username,
+        avatar_updated_at=user.avatar_updated_at.isoformat() if user.avatar_updated_at else None,
+    )
 
 
 @router.post("/logout")

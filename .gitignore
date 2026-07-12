@@ -4,6 +4,8 @@ __pycache__/
 server/.venv/
 server/*.db
 server/*.log
+# 用户上传的头像文件(用户数据,不入库)
+server/avatars/
 
 # 便携工具链:只提交 env.bat / env.ps1,二进制与缓存不入库
 utils/node/

@@ -9,23 +9,30 @@ import { ScreenBackground } from '@/components/screen-background';
 import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { api } from '@/lib/api';
+import { api, avatarUrl } from '@/lib/api';
 import { CELEBRITY_PORTRAITS } from '@/lib/celebrity-portraits';
 import type { JudgeStatus } from '@/lib/types';
 import { useAuthStore } from '@/stores/auth-store';
 import { useSettingsStore } from '@/stores/settings-store';
 
 export default function VisitAgentScreen() {
-  const { userId, username, builtin } = useLocalSearchParams<{
+  const { userId, username, builtin, avatarTs } = useLocalSearchParams<{
     userId: string;
     username?: string;
     builtin?: string;
+    avatarTs?: string;
   }>();
   const scheme = useColorScheme() ?? 'light';
   const tint = Colors[scheme].tint;
   const chatBg = useSettingsStore((s) => s.chatBg);
   const myId = useAuthStore((s) => s.userId);
-  const portrait = username ? CELEBRITY_PORTRAITS[username] : undefined;
+  // 聊天气泡旁的头像:自定义头像 > 名人内置画像
+  const portrait =
+    avatarTs && userId
+      ? { uri: avatarUrl(userId, avatarTs) }
+      : username
+        ? CELEBRITY_PORTRAITS[username]
+        : undefined;
   // 此页有导航头:键盘规避需要补上 header 高度(含状态栏)
   const headerHeight = useHeaderHeight();
 

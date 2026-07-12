@@ -15,6 +15,8 @@ export interface AuthResponse {
   token: string;
   user_id: string;
   username: string;
+  // 有值 = 有自定义头像(ISO 时间戳,兼作头像 URL 的缓存指纹)
+  avatar_updated_at: string | null;
 }
 
 export interface UserSummary {
@@ -23,6 +25,7 @@ export interface UserSummary {
   card_count: number;
   is_builtin: boolean;
   status: string | null;
+  avatar_updated_at: string | null;
 }
 
 export interface ChatHistoryItem {

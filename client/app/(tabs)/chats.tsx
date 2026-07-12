@@ -26,7 +26,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { api } from '@/lib/api';
+import { api, avatarUrl } from '@/lib/api';
 import { avatarColor, CELEBRITY_PORTRAITS } from '@/lib/celebrity-portraits';
 import { kvGet, kvSet } from '@/lib/kv';
 import type { UserSummary } from '@/lib/types';
@@ -73,7 +73,21 @@ function applyOrder(users: UserSummary[], order: string[]): UserSummary[] {
   );
 }
 
-function UserAvatar({ username }: { username: string }) {
+function UserAvatar({
+  username,
+  userId,
+  avatarTs,
+}: {
+  username: string;
+  userId?: string;
+  avatarTs?: string | null;
+}) {
+  // 优先级:自定义头像 > 名人内置画像 > 首字母色块
+  if (userId && avatarTs) {
+    return (
+      <Image source={{ uri: avatarUrl(userId, avatarTs) }} style={styles.avatar} fadeDuration={0} />
+    );
+  }
   const portrait = CELEBRITY_PORTRAITS[username];
   if (portrait) {
     return <Image source={portrait} style={styles.avatar} fadeDuration={0} />;
@@ -92,6 +106,7 @@ function openChat(user: UserSummary) {
       userId: user.id,
       username: user.username,
       builtin: user.is_builtin ? '1' : '',
+      avatarTs: user.avatar_updated_at ?? '',
     },
   });
 }
@@ -208,7 +223,11 @@ function DraggableRow({
                 runOnJS(onPinToggle)();
               })}>
             <View collapsable={false}>
-              <UserAvatar username={user.username} />
+              <UserAvatar
+                username={user.username}
+                userId={user.id}
+                avatarTs={user.avatar_updated_at}
+              />
             </View>
           </GestureDetector>
           <View style={styles.cardBody}>
@@ -251,7 +270,11 @@ function PinnedCard({ user, onUnpin }: { user: UserSummary; onUnpin: () => void 
             runOnJS(onUnpin)();
           })}>
         <View collapsable={false}>
-          <UserAvatar username={user.username} />
+          <UserAvatar
+            username={user.username}
+            userId={user.id}
+            avatarTs={user.avatar_updated_at}
+          />
         </View>
       </GestureDetector>
       <View style={styles.cardBody}>
@@ -272,7 +295,7 @@ function PinnedCard({ user, onUnpin }: { user: UserSummary; onUnpin: () => void 
 export default function ChatsScreen() {
   const insets = useSafeAreaInsets();
   const scheme = useColorScheme() ?? 'light';
-  const { token, username, userId } = useAuthStore();
+  const { token, username, userId, avatarTs } = useAuthStore();
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [pins, setPins] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -372,10 +395,15 @@ export default function ChatsScreen() {
         onPress={() =>
           router.push({
             pathname: '/visit/[userId]',
-            params: { userId: userId ?? '', username: username ?? '', builtin: '' },
+            params: {
+              userId: userId ?? '',
+              username: username ?? '',
+              builtin: '',
+              avatarTs: avatarTs ?? '',
+            },
           })
         }>
-        <UserAvatar username={username ?? '我'} />
+        <UserAvatar username={username ?? '我'} userId={userId ?? undefined} avatarTs={avatarTs} />
         <View style={styles.cardBody}>
           <View style={styles.cardRow}>
             <ThemedText style={styles.cardName} numberOfLines={1}>
