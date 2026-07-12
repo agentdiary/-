@@ -16,11 +16,13 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useSettingsStore } from '@/stores/settings-store';
 
 export default function VisitAgentScreen() {
-  const { userId, username, builtin, avatarTs } = useLocalSearchParams<{
+  const { userId, username, builtin, avatarTs, mode: initialMode } = useLocalSearchParams<{
     userId: string;
     username?: string;
     builtin?: string;
     avatarTs?: string;
+    // 'real' = 从真人聊天列表进来,直接打开真人对话
+    mode?: string;
   }>();
   const scheme = useColorScheme() ?? 'light';
   const tint = Colors[scheme].tint;
@@ -44,7 +46,9 @@ export default function VisitAgentScreen() {
   const [evaluating, setEvaluating] = useState(false);
   const [judgeError, setJudgeError] = useState<string | null>(null);
   const [showReport, setShowReport] = useState(false);
-  const [mode, setMode] = useState<'avatar' | 'real'>('avatar');
+  const [mode, setMode] = useState<'avatar' | 'real'>(
+    initialMode === 'real' ? 'real' : 'avatar',
+  );
 
   const refreshJudge = useCallback(() => {
     if (!judgeable || !userId) return;
@@ -152,6 +156,11 @@ export default function VisitAgentScreen() {
           username={username ?? 'TA'}
           keyboardOffset={headerHeight}
         />
+      ) : judgeable && mode === 'real' && judge === null ? (
+        // 从真人聊天列表直接进来:解锁状态还没拉到,先转圈,避免闪一下化身对话
+        <View style={styles.loadingBody}>
+          <ActivityIndicator />
+        </View>
       ) : (
         <AgentChat
           targetUserId={userId}
@@ -262,6 +271,7 @@ const styles = StyleSheet.create({
   scoreText: { fontSize: 13, fontWeight: '700', color: 'rgba(127,127,127,0.9)' },
   scoreTextPassed: { color: '#4faa7d' },
   judgeError: { color: '#c44', paddingHorizontal: 20, paddingVertical: 4, fontSize: 12 },
+  loadingBody: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   reportOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.55)',

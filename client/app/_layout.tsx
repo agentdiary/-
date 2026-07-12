@@ -59,6 +59,7 @@ export default function RootLayout() {
           options={{ presentation: 'modal', title: '设置' }}
         />
         <Stack.Screen name="visit/[userId]" options={{ title: '' }} />
+        <Stack.Screen name="real-chats" options={{ title: '真人聊天' }} />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>

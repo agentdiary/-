@@ -24,6 +24,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { api, avatarUrl } from '@/lib/api';
@@ -383,10 +384,20 @@ export default function ChatsScreen() {
   return (
     <ThemedView style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <ThemedText type="title">对话</ThemedText>
-        <ThemedText style={styles.subtitle}>
-          点按去聊天;长按头像置顶;长按卡片拖动排序
-        </ThemedText>
+        <View style={styles.headerLeft}>
+          <ThemedText type="title">对话</ThemedText>
+          <ThemedText style={styles.subtitle}>
+            点按去聊天;长按头像置顶;长按卡片拖动排序
+          </ThemedText>
+        </View>
+        {/* 真人聊天:只列 AI 裁判评估通过(已解锁)的人 */}
+        <Pressable
+          style={styles.realChatsBtn}
+          hitSlop={8}
+          onPress={() => router.push('/real-chats')}>
+          <IconSymbol size={24} name="person.2.fill" color={Colors[scheme].icon} />
+          <ThemedText style={styles.realChatsLabel}>真人</ThemedText>
+        </Pressable>
       </View>
 
       {/* 我的化身:固定置顶,不参与拖动排序 */}
@@ -444,8 +455,18 @@ export default function ChatsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingHorizontal: 24, paddingTop: 10, paddingBottom: 12 },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingHorizontal: 24,
+    paddingTop: 10,
+    paddingBottom: 12,
+  },
+  headerLeft: { flexShrink: 1 },
   subtitle: { fontSize: 13, opacity: 0.5, marginTop: 4 },
+  realChatsBtn: { alignItems: 'center', gap: 1, paddingTop: 4 },
+  realChatsLabel: { fontSize: 10, opacity: 0.55, lineHeight: 13 },
   error: { color: '#c44', paddingHorizontal: 24, paddingBottom: 8 },
   emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   emptyText: { opacity: 0.5 },

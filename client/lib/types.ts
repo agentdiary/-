@@ -68,6 +68,15 @@ export interface DirectMessageItem {
   created_at: string;
 }
 
+// 已解锁真人对话的会话条目(按最近往来排序)
+export interface ConversationItem {
+  user_id: string;
+  username: string;
+  avatar_updated_at: string | null;
+  last_message: string | null;
+  last_at: string | null;
+}
+
 export interface PersonaCard {
   id: string;
   assertion: string;

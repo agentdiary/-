@@ -11,7 +11,7 @@ from sqlmodel import Session, and_, or_, select
 
 from ..auth import get_current_user
 from ..db import get_session
-from ..models import DirectMessage, User
+from ..models import DirectMessage, MatchReport, User
 from ..ratelimit import check_rate_limit
 from .judge import pair_unlocked
 
@@ -50,6 +50,53 @@ def _between(a: str, b: str):
         and_(DirectMessage.sender_id == a, DirectMessage.recipient_id == b),
         and_(DirectMessage.sender_id == b, DirectMessage.recipient_id == a),
     )
+
+
+class ConversationOut(BaseModel):
+    """已解锁真人对话的会话条目(按最近往来排序)。"""
+
+    user_id: str
+    username: str
+    avatar_updated_at: datetime | None
+    last_message: str | None  # 双方最后一条消息预览;None = 还没说过话
+    last_at: datetime | None
+
+
+@router.get("")
+def list_conversations(
+    me: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> list[ConversationOut]:
+    # 与我存在任一方向通过报告的用户 = 已解锁真人对话
+    reports = session.exec(
+        select(MatchReport)
+        .where(MatchReport.passed == True)  # noqa: E712
+        .where(or_(MatchReport.owner_id == me.id, MatchReport.visitor_id == me.id))
+    )
+    peer_ids = {r.owner_id if r.visitor_id == me.id else r.visitor_id for r in reports}
+    out: list[ConversationOut] = []
+    for pid in peer_ids:
+        peer = session.get(User, pid)
+        if peer is None or peer.is_builtin or peer.id == me.id:
+            continue
+        last = session.exec(
+            select(DirectMessage)
+            .where(_between(me.id, pid))
+            .order_by(DirectMessage.created_at.desc())  # type: ignore[attr-defined]
+            .limit(1)
+        ).first()
+        out.append(
+            ConversationOut(
+                user_id=peer.id,
+                username=peer.username,
+                avatar_updated_at=peer.avatar_updated_at,
+                last_message=last.content if last else None,
+                last_at=last.created_at if last else None,
+            )
+        )
+    # 最近说过话的在前,还没开口的排最后
+    out.sort(key=lambda x: (x.last_at is None, -x.last_at.timestamp() if x.last_at else 0.0))
+    return out
 
 
 @router.get("/{user_id}")

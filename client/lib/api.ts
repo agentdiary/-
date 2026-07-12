@@ -5,6 +5,7 @@ import type {
   AuthResponse,
   AvatarReply,
   ChatHistoryItem,
+  ConversationItem,
   DiaryEntry,
   DiaryVisibility,
   DirectMessageItem,
@@ -173,6 +174,9 @@ export const api = {
 
   evaluateMatch: (targetUserId: string) =>
     request<JudgeStatus>(`/judge/${targetUserId}/evaluate`, { method: 'POST' }),
+
+  // 已解锁真人对话的会话列表(最近往来在前)
+  listConversations: () => request<ConversationItem[]>('/dm'),
 
   // 真人对话(裁判解锁后);列表为新→旧,直接喂 inverted FlatList
   listDirectMessages: (userId: string) => request<DirectMessageItem[]>(`/dm/${userId}`),
