@@ -480,6 +480,7 @@ const styles = StyleSheet.create({
   },
   selfCard: {
     marginHorizontal: 20,
+    marginTop: 10,
     marginBottom: ROW_GAP,
     borderWidth: 1,
   },
