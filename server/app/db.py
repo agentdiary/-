@@ -1,18 +1,23 @@
 """SQLite 存储。生产化前需换加密存储方案(隐私红线:存储加密)。"""
 
 import logging
-from pathlib import Path
+import os
+import secrets
 
 from sqlmodel import Session, SQLModel, create_engine, text
 
-DB_PATH = Path(__file__).resolve().parent.parent / "agentdiary.db"
+from .config import DB_PATH
+
 engine = create_engine(f"sqlite:///{DB_PATH}", connect_args={"check_same_thread": False})
 
 logger = logging.getLogger(__name__)
 
-# 旧单人版数据在多用户迁移时归入此账号(密码见 README)
+# 旧单人版数据在多用户迁移时归入此账号
 LEGACY_USERNAME = "1iyi"
-LEGACY_PASSWORD = "agentdiary"
+# 曾经硬编码成 "agentdiary" 明文提交进仓库,公网暴露后等于一个已知口令的后门。
+# 现在:优先读环境变量,没设就随机生成并只打印一次(不落盘、不进 git)
+LEGACY_PASSWORD = os.environ.get("LEGACY_PASSWORD") or secrets.token_urlsafe(12)
+_LEAKED_LEGACY_PASSWORD = "agentdiary"  # 仅用于启动时检测老库是否还在用它
 
 
 def _column_exists(conn, table: str, column: str) -> bool:
@@ -77,6 +82,13 @@ def _adopt_orphans() -> None:
             session.add(legacy)
             session.commit()
             session.refresh(legacy)
+            if not os.environ.get("LEGACY_PASSWORD"):
+                # 随机口令只在这一次出现,记下来否则进不去这个账号
+                logger.warning(
+                    "已创建账号 %s,随机初始密码:%s(仅此一次显示,请立刻登录改掉)",
+                    LEGACY_USERNAME,
+                    LEGACY_PASSWORD,
+                )
         for table in ("diaryentry", "dialoguepair", "personacard"):
             session.execute(
                 text(f"UPDATE {table} SET user_id = :uid WHERE user_id IS NULL"),
@@ -117,12 +129,34 @@ def _seed_celebrities() -> None:
         session.commit()
 
 
+def _warn_weak_legacy_password() -> None:
+    """老库里 legacy 账号可能还在用曾经硬编码的明文口令。
+
+    不代改:静默改密会把用户锁在自己账号外面。只报警,让人自己用改密接口换掉。
+    """
+    from sqlmodel import select
+
+    from .auth import verify_password
+    from .models import User
+
+    with Session(engine) as session:
+        legacy = session.exec(select(User).where(User.username == LEGACY_USERNAME)).first()
+        if legacy and verify_password(_LEAKED_LEGACY_PASSWORD, legacy.password_hash):
+            logger.warning(
+                "安全告警:账号 %s 仍在使用曾提交进仓库的默认口令。"
+                "公网部署前必须通过改密接口换掉,否则等于一个已知口令的后门。",
+                LEGACY_USERNAME,
+            )
+
+
 def init_db() -> None:
+    logger.warning("数据目录:%s(部署时须指到代码目录之外)", DB_PATH.parent)
     with engine.begin() as conn:
         _migrate(conn)
     SQLModel.metadata.create_all(engine)
     _adopt_orphans()
     _seed_celebrities()
+    _warn_weak_legacy_password()
 
 
 def get_session():

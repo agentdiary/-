@@ -2,7 +2,6 @@
 
 import base64
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
@@ -10,16 +9,27 @@ from pydantic import BaseModel
 from sqlmodel import Session, func, select
 
 from ..auth import get_current_user, hash_password, verify_password
+from ..config import AVATAR_DIR
 from ..db import get_session
-from ..models import AuthToken, PersonaCard, User
+from ..models import (
+    AuthToken,
+    ChatMessage,
+    DialoguePair,
+    DiaryAllowedUser,
+    DiaryEntry,
+    DirectMessage,
+    MatchReport,
+    PersonaCard,
+    User,
+)
 from ..ratelimit import check_rate_limit
 
 router = APIRouter(prefix="/users", tags=["users"])
 
 STATUS_TTL = timedelta(hours=24)
 
-# 头像文件目录(与 agentdiary.db 同级);时间戳存在 User.avatar_updated_at
-AVATAR_DIR = Path(__file__).resolve().parent.parent.parent / "avatars"
+# 头像文件落在数据目录(与 agentdiary.db 同级),部署时随 AGENTDIARY_DATA_DIR
+# 一起外置;时间戳存在 User.avatar_updated_at
 MAX_AVATAR_BYTES = 8 * 1024 * 1024
 
 
@@ -121,6 +131,67 @@ def change_username(
         session.add(me)
         session.commit()
     return {"username": username}
+
+
+class AccountDeletion(BaseModel):
+    password: str
+
+
+@router.delete("/me")
+def delete_account(
+    body: AccountDeletion,
+    me: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> dict:
+    """注销账号,连带删除全部衍生数据。
+
+    Apple 审核指南 5.1.1(v) 要求可在 App 内自助注销;PIPL 的删除权同理。
+    要求重输密码:token 被盗时不该能一键抹掉别人所有数据。
+
+    删除范围对齐 CLAUDE.md §5「用户删除日记 → 级联删除衍生的对话对与人格
+    卡片」,只是把粒度提到账号级。头像文件也一并删,否则数据没了文件还在。
+    """
+    check_rate_limit(f"delacct:{me.id}", max_calls=5, window_seconds=3600)
+    if me.is_builtin:
+        raise HTTPException(status_code=403, detail="内置化身账号不可注销")
+    if not verify_password(body.password, me.password_hash):
+        raise HTTPException(status_code=403, detail="密码不对")
+
+    uid = me.id
+    # 先删日记的从属表(DiaryAllowedUser 挂在 diary 上,不是 user 上)
+    my_diaries = [d.id for d in session.exec(select(DiaryEntry).where(DiaryEntry.user_id == uid))]
+    if my_diaries:
+        for allow in session.exec(
+            select(DiaryAllowedUser).where(DiaryAllowedUser.diary_id.in_(my_diaries))  # type: ignore[attr-defined]
+        ):
+            session.delete(allow)
+    # 他人日记对我的授权也要撤销
+    for allow in session.exec(select(DiaryAllowedUser).where(DiaryAllowedUser.user_id == uid)):
+        session.delete(allow)
+
+    for model, columns in (
+        (AuthToken, (AuthToken.user_id,)),
+        (PersonaCard, (PersonaCard.user_id,)),
+        (DialoguePair, (DialoguePair.user_id,)),
+        (DiaryEntry, (DiaryEntry.user_id,)),
+        # 双向的:我的化身被访问的记录、我访问别人化身的记录,都是我的数据
+        (ChatMessage, (ChatMessage.agent_owner_id, ChatMessage.visitor_id)),
+        (MatchReport, (MatchReport.owner_id, MatchReport.visitor_id)),
+        (DirectMessage, (DirectMessage.sender_id, DirectMessage.recipient_id)),
+    ):
+        for col in columns:
+            for row in session.exec(select(model).where(col == uid)):  # type: ignore[arg-type]
+                session.delete(row)
+
+    session.delete(me)
+    session.commit()
+
+    # 库删干净了再删文件:反过来的话中途失败会留下有记录无文件的悬空状态
+    avatar = AVATAR_DIR / f"{uid}.img"
+    if avatar.exists():
+        avatar.unlink()
+
+    return {"deleted": uid}
 
 
 @router.put("/me/avatar")

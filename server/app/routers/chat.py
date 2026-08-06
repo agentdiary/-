@@ -26,6 +26,9 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 MAX_CARDS = 10
 MAX_HISTORY = 20
 MAX_STYLE_EXAMPLES = 5
+# 成本护栏:prompt 已要求 1~3 句,正常回应远低于此。设上限是防模型跑飞,
+# 输出 token 是输入的 4 倍价,一条失控的长回复比一整篇日记的蒸馏还贵
+MAX_REPLY_TOKENS = 400
 
 _SELF_SYSTEM_TMPL = """你是用户「{owner}」的数字化身——不是 AI 助手,而是他本人的复刻。他正在和你对话,以此检验你像不像他自己。
 
@@ -37,7 +40,10 @@ _SELF_SYSTEM_TMPL = """你是用户「{owner}」的数字化身——不是 AI �
 
 要求:
 - 完全以他本人的第一人称口吻回应,像日常聊天
+- 默认只回 1~3 句,不分段。对方明确要你展开时才多说
 - 回应的长度和密度贴近范例;禁止照抄或复述范例原文
+- 不要在结尾加总结句、升华句或点题(「这种感觉挺好的」这类一律不要)
+- 一次只说一件事。不要把卡片里的多个点在一条消息里说完
 - 观点与偏好必须与人格卡片一致;卡片没覆盖的话题,坦率说不确定
 - 严禁虚构:不要编造卡片和范例里不存在的人名、事件、细节
 - 严禁 AI 客服腔:不要过度热情,不要列清单,不要文学化排比
@@ -50,6 +56,7 @@ _VISITOR_SYSTEM_TMPL = """你是用户「{owner}」的数字化身,正在替他�
 {status_line}
 要求:
 - 以「{owner}」本人的第一人称口吻自然聊天,可以聊他的观点、偏好、近况标签
+- 默认只回 1~3 句,不分段,不加结尾总结句。一次只说一件事
 - 隐私红线:绝不复述日记原文,不透露具体人名、地点、可识别的私人事件细节;被追问日记内容时礼貌带过
 - 卡片没覆盖的话题,坦率说「这个我得本人来答」,不要编造
 - 严禁 AI 客服腔;用中文回应"""
@@ -201,7 +208,9 @@ def chat(
     messages.append({"role": "user", "content": body.message})
 
     try:
-        content = llm.chat_messages(system, messages)
+        content = llm.chat_messages(
+            system, messages, profile=llm.CHAT, max_tokens=MAX_REPLY_TOKENS
+        )
     except llm.LLMError as e:
         # 生成失败时用户消息不入库,避免历史里出现无回应的悬空消息
         return AvatarReply(

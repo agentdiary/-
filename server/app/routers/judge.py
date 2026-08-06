@@ -162,7 +162,9 @@ def evaluate(
     )
 
     try:
-        data = llm.chat_json(_JUDGE_SYSTEM, transcript)
+        # 裁判是分析任务不是扮演任务,跟蒸馏共用强模型档:它要评的就是化身
+        # 像不像,用化身自己那档模型评自己会失真
+        data = llm.chat_json(_JUDGE_SYSTEM, transcript, profile=llm.DISTILL)
     except llm.LLMError as e:
         raise HTTPException(status_code=503, detail=f"裁判暂时下线:{e}") from e
 

@@ -1,0 +1,18 @@
+﻿[Unit]
+Description=AgentDiary FastAPI backend
+After=network.target
+
+[Service]
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/agentdiary/server
+EnvironmentFile=/etc/agentdiary.env
+# 单 worker 是硬要求:SQLite 写并发、ratelimit.py 的进程内计数、
+# BackgroundTasks 蒸馏,三样都依赖单进程。绝不要加 --workers
+# 只绑 127.0.0.1:nginx 反代,不对公网直接暴露 8000
+ExecStart=/home/ubuntu/agentdiary/server/.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

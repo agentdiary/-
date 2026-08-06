@@ -33,13 +33,38 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | GET | /persona-cards | 查看人格卡片(含出处) |
 | GET | /health | 健康检查 |
 
-## LLM 接入(当前:本地 Ollama)
+## LLM 接入
 
-推理走本地 Ollama(`app/llm.py`),默认 `http://localhost:11434` + `qwen3.5:9b`,
-可用环境变量 `OLLAMA_URL` / `OLLAMA_MODEL` 覆盖。**启动后端前先确保 Ollama 在运行。**
+`app/llm.py` 统一走 OpenAI 兼容协议(`/v1/chat/completions`)。千问百炼、Ollama、
+vLLM 都实现这个协议,换模型只改环境变量,请求体不动。
+
+分两套独立配置,因为两件活对模型的要求不同:
+
+| 档 | 用在哪 | 该用什么 |
+|---|---|---|
+| `DISTILL` | 蒸馏抽卡片、构造对话对、AI 裁判 | 最强通用模型。产出训练素材,质量决定后续 LoRA 上限 |
+| `CHAT` | 化身对话 | 现借通用模型跑通 Phase 0;将来换成自己 LoRA 微调的基座 |
+
+**不设任何环境变量时全部回退到本地 Ollama**(`qwen3.5:9b`),原有开发流程照常,
+只需确保 Ollama 在运行。切到千问百炼:
+
+```powershell
+# 用户级永久变量,设完要重开终端。API Key 绝不写进代码或 git
+[Environment]::SetEnvironmentVariable("DASHSCOPE_API_KEY", "sk-...", "User")
+[Environment]::SetEnvironmentVariable("DISTILL_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1", "User")
+[Environment]::SetEnvironmentVariable("DISTILL_MODEL", "qwen3.7-plus", "User")
+[Environment]::SetEnvironmentVariable("CHAT_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1", "User")
+[Environment]::SetEnvironmentVariable("CHAT_MODEL", "qwen3.7-plus", "User")
+```
+
+服务器上则写进 systemd 的 `EnvironmentFile`(权限 600)。
+
+`LLM_MONTHLY_TOKEN_BUDGET` 可选:设成月度 token 上限,超了拒绝调用。`ratelimit.py`
+挡的是单人滥用,这个挡的是总量超支(20 个用户各聊 30 轮同样能烧穿预算)。
+进程内计数、重启归零,真实对账看日志里每次调用的 `usage` 行。
 
 - 写日记 → FastAPI BackgroundTasks 后台蒸馏(逆向构造对话对 + 抽取人格卡片),
-  本地 9B 推理一篇约 30~90 秒,完成后卡片才会出现
+  完成后卡片才会出现
 - 化身对话 → 按新近度检索人格卡片注入 system prompt 生成回应
 
 ## 待接入(按 CLAUDE.md §2)

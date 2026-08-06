@@ -59,7 +59,7 @@ def build_dialogue_pairs(diary: DiaryEntry, slices: list[str]) -> list[DialogueP
     """逆向构造对话对:避免直接拿日记原文训练导致化身学成日记腔。"""
     pairs = []
     for s in slices[:MAX_SLICES]:
-        situation = llm.chat(_SITUATION_SYSTEM, s)
+        situation = llm.chat(_SITUATION_SYSTEM, s, profile=llm.DISTILL)
         pairs.append(
             DialoguePair(
                 user_id=diary.user_id, source_diary_id=diary.id, situation=situation, response=s
@@ -70,7 +70,7 @@ def build_dialogue_pairs(diary: DiaryEntry, slices: list[str]) -> list[DialogueP
 
 def extract_persona_cards(diary: DiaryEntry, clean_content: str) -> list[PersonaCard]:
     """抽取人格断言卡片,带置信度与出处。"""
-    data = llm.chat_json(_CARDS_SYSTEM, clean_content)
+    data = llm.chat_json(_CARDS_SYSTEM, clean_content, profile=llm.DISTILL)
     if not data.get("cards"):
         # 空结果必须留痕:模型可能拒绝抽取(返回 error_message 等),否则无从排查
         logger.warning("卡片抽取为空 diary=%s 模型返回=%s", diary.id, str(data)[:300])
