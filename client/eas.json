@@ -9,9 +9,23 @@
       "android": {
         "buildType": "apk"
       },
+      "ios": {
+        "simulator": false
+      },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://exes-valium-map.ngrok-free.dev"
+        "EXPO_PUBLIC_API_URL": "https://43.130.127.226.sslip.io"
+      }
+    },
+    "production": {
+      "distribution": "store",
+      "channel": "production",
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://43.130.127.226.sslip.io"
       }
     }
+  },
+  "submit": {
+    "production": {}
   }
 }

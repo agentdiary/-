@@ -1,5 +1,5 @@
 // 后端 API 客户端。客户端不做任何模型逻辑,不直接调用 LLM(密钥安全红线)。
-// 本机开发时 EXPO_PUBLIC_API_URL 用电脑局域网 IP;发布版走 ngrok 公网域名。
+// 本机开发时 EXPO_PUBLIC_API_URL 用电脑局域网 IP;发布版走云端后端(见 eas.json)。
 
 import type {
   AuthResponse,
@@ -46,13 +46,19 @@ export class ApiError extends Error {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    // ngrok 免费域名对无此头的请求返回警告页 HTML 而非 JSON
-    'ngrok-skip-browser-warning': '1',
   };
   if (authToken) {
     headers.Authorization = `Bearer ${authToken}`;
   }
-  const res = await fetch(`${BASE_URL}${path}`, { headers, ...init });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, { headers, ...init });
+  } catch (e) {
+    // RN 的网络层失败一律是 "Network request failed",不带地址,排查时
+    // 完全看不出连的是哪儿、是明文被拦还是服务器没起。把地址带上。
+    // 常见成因:Android 9+ 禁止明文 HTTP、后端没起、地址写错、证书无效。
+    throw new ApiError(0, `连不上服务器 ${BASE_URL}(${(e as Error).message})`);
+  }
   if (res.status === 401 && !path.startsWith('/auth/')) {
     onUnauthorized?.();
   }
@@ -106,6 +112,14 @@ export const api = {
     request<{ ok: boolean }>('/users/me/password', {
       method: 'PUT',
       body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }),
+    }),
+
+  // 注销账号:日记、人格卡片、对话记录、头像一并删除,不可恢复。
+  // Apple 审核指南 5.1.1(v) 要求可在 App 内自助注销。
+  deleteAccount: (password: string) =>
+    request<{ deleted: string }>('/users/me', {
+      method: 'DELETE',
+      body: JSON.stringify({ password }),
     }),
 
   changeUsername: (username: string) =>

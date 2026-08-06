@@ -32,10 +32,11 @@ export default function SettingsScreen() {
   const [checking, setChecking] = useState(false);
   const [avatarBusy, setAvatarBusy] = useState(false);
   // 展开的编辑面板:一次只开一个
-  const [editing, setEditing] = useState<'name' | 'password' | null>(null);
+  const [editing, setEditing] = useState<'name' | 'password' | 'delete' | null>(null);
   const [nameDraft, setNameDraft] = useState('');
   const [oldPwd, setOldPwd] = useState('');
   const [newPwd, setNewPwd] = useState('');
+  const [delPwd, setDelPwd] = useState('');
   const [saving, setSaving] = useState(false);
 
   // 更换头像:选图(方形裁剪)→ base64 上传;服务端时间戳兼作缓存指纹
@@ -117,6 +118,36 @@ export default function SettingsScreen() {
     } finally {
       setChecking(false);
     }
+  };
+
+  // 注销走两道关:面板里输密码,再弹一次不可恢复的确认。
+  // 不用 Alert.prompt——那个只在 iOS 有效,Android 上静默什么都不做。
+  const confirmDeleteAccount = () => {
+    if (!delPwd || saving) return;
+    Alert.alert(
+      '永久删除账号?',
+      '日记、人格卡片、化身对话记录和头像会全部删除,无法恢复。',
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '永久删除',
+          style: 'destructive',
+          onPress: async () => {
+            setSaving(true);
+            try {
+              await api.deleteAccount(delPwd);
+              setDelPwd('');
+              await logout();
+              router.replace('/login');
+            } catch (e) {
+              Alert.alert('注销失败', e instanceof Error ? e.message : String(e));
+            } finally {
+              setSaving(false);
+            }
+          },
+        },
+      ],
+    );
   };
 
   const confirmLogout = () => {
@@ -266,6 +297,45 @@ export default function SettingsScreen() {
           <IconSymbol size={20} name="rectangle.portrait.and.arrow.right" color="#ca4543" />
           <Text style={[styles.rowText, styles.logoutText]}>退出登录</Text>
         </Pressable>
+
+        {/* 注销账号。Apple 审核指南 5.1.1(v):允许注册的 App 必须能在 App 内
+            自助注销,不能只留客服邮箱。同时对应 CLAUDE.md §5 的删除权。 */}
+        <Pressable
+          style={styles.rowItem}
+          onPress={() => {
+            setDelPwd('');
+            setEditing(editing === 'delete' ? null : 'delete');
+          }}>
+          <IconSymbol size={20} name="trash.fill" color="#ca4543" />
+          <Text style={[styles.rowText, styles.logoutText]}>注销账号</Text>
+        </Pressable>
+        {editing === 'delete' && (
+          <View style={styles.editPanel}>
+            <ThemedText style={styles.editHint}>
+              账号连同全部日记、人格卡片、化身对话记录将被永久删除,无法恢复。
+            </ThemedText>
+            <TextInput
+              style={[styles.input, { color: Colors[scheme].text }]}
+              value={delPwd}
+              onChangeText={setDelPwd}
+              placeholder="输入当前密码确认"
+              placeholderTextColor="rgba(127,127,127,0.6)"
+              secureTextEntry
+              autoFocus
+            />
+            <Pressable
+              style={[
+                styles.saveBtn,
+                { backgroundColor: '#ca4543', opacity: delPwd && !saving ? 1 : 0.4 },
+              ]}
+              disabled={!delPwd || saving}
+              onPress={confirmDeleteAccount}>
+              <Text style={[styles.saveBtnText, { color: '#fff' }]}>
+                {saving ? '删除中...' : '永久删除账号'}
+              </Text>
+            </Pressable>
+          </View>
+        )}
       </ScrollView>
     </ThemedView>
   );
