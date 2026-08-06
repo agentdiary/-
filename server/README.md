@@ -38,13 +38,13 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 当前云主机 API:
 
 ```text
-http://43.130.127.226:8000
+http://43.130.127.226
 ```
 
 健康检查:
 
 ```text
-http://43.130.127.226:8000/health
+http://43.130.127.226/health
 ```
 
 服务用 user-level systemd 管理,配置见 `deploy/agentdiary-api.service`。

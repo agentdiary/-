@@ -6,8 +6,8 @@ The cloud backend runs FastAPI as a user-level systemd service on the Ubuntu hos
 
 - Repository path: `/home/ubuntu/agentdiary`
 - Database path: `/home/ubuntu/agentdiary-data/agentdiary.db`
-- Public API base URL: `http://43.130.127.226:8000`
-- Health check: `http://43.130.127.226:8000/health`
+- Public API base URL: `http://43.130.127.226`
+- Health check: `http://43.130.127.226/health`
 
 ## Commands
 
@@ -16,6 +16,9 @@ systemctl --user status agentdiary-api
 systemctl --user restart agentdiary-api
 journalctl --user -u agentdiary-api -n 100 --no-pager
 ```
+
+Nginx proxies public port 80 to the local FastAPI service on port 8000. Its
+checked-in config is `deploy/nginx-agentdiary.conf`.
 
 ## Environment
 

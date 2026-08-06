@@ -10,7 +10,7 @@ import type {
   UserSummary,
 } from './types';
 
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://43.130.127.226:8000';
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://43.130.127.226';
 
 let authToken: string | null = null;
 
