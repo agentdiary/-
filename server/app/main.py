@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,13 +17,14 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="AgentDiary API", version="0.1.0", lifespan=lifespan)
 
 
-# TODO 临时诊断:把所有请求记到 access-debug.log,排查真机行为;定位后删除
 @app.middleware("http")
 async def _debug_access(request, call_next):
     from datetime import datetime, timezone
     from pathlib import Path
 
     response = await call_next(request)
+    if os.environ.get("AGENTDIARY_ACCESS_LOG") != "1":
+        return response
     log = Path(__file__).resolve().parent.parent / "access-debug.log"
     with log.open("a", encoding="utf-8") as f:
         f.write(
@@ -31,10 +33,15 @@ async def _debug_access(request, call_next):
         )
     return response
 
-# 开发期放开跨域;上线前收紧
+
+def _cors_origins() -> list[str]:
+    raw = os.environ.get("AGENTDIARY_CORS_ORIGINS", "*")
+    return [origin.strip() for origin in raw.split(",") if origin.strip()]
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins(),
     allow_methods=["*"],
     allow_headers=["*"],
 )

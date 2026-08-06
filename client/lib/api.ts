@@ -1,5 +1,5 @@
 // 后端 API 客户端。客户端不做任何模型逻辑,不直接调用 LLM(密钥安全红线)。
-// 本机开发时 EXPO_PUBLIC_API_URL 用电脑局域网 IP;发布版走 ngrok 公网域名。
+// 本机开发时 EXPO_PUBLIC_API_URL 用电脑局域网 IP;发布版默认走云端 API。
 
 import type {
   AuthResponse,
@@ -10,7 +10,7 @@ import type {
   UserSummary,
 } from './types';
 
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://43.130.127.226:8000';
 
 let authToken: string | null = null;
 

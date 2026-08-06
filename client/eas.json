@@ -10,7 +10,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://exes-valium-map.ngrok-free.dev"
+        "EXPO_PUBLIC_API_URL": "http://43.130.127.226:8000"
       }
     }
   }

@@ -33,9 +33,25 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | GET | /persona-cards | 查看人格卡片(含出处) |
 | GET | /health | 健康检查 |
 
-## LLM 接入(当前:本地 Ollama)
+## 云端启动
 
-推理走本地 Ollama(`app/llm.py`),默认 `http://localhost:11434` + `qwen3.5:9b`,
+当前云主机 API:
+
+```text
+http://43.130.127.226:8000
+```
+
+健康检查:
+
+```text
+http://43.130.127.226:8000/health
+```
+
+服务用 user-level systemd 管理,配置见 `deploy/agentdiary-api.service`。
+
+## LLM 接入(当前:Ollama)
+
+推理走 Ollama(`app/llm.py`),默认 `http://localhost:11434` + `qwen3.5:9b`,
 可用环境变量 `OLLAMA_URL` / `OLLAMA_MODEL` 覆盖。**启动后端前先确保 Ollama 在运行。**
 
 - 写日记 → FastAPI BackgroundTasks 后台蒸馏(逆向构造对话对 + 抽取人格卡片),

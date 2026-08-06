@@ -1,11 +1,16 @@
 """SQLite 存储。生产化前需换加密存储方案(隐私红线:存储加密)。"""
 
 import logging
+import os
 from pathlib import Path
 
 from sqlmodel import Session, SQLModel, create_engine, text
 
-DB_PATH = Path(__file__).resolve().parent.parent / "agentdiary.db"
+_db_path = os.environ.get("AGENTDIARY_DB_PATH")
+DB_PATH = Path(_db_path).expanduser() if _db_path else None
+if DB_PATH is None:
+    DB_PATH = Path(__file__).resolve().parent.parent / "agentdiary.db"
+DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 engine = create_engine(f"sqlite:///{DB_PATH}", connect_args={"check_same_thread": False})
 
 logger = logging.getLogger(__name__)

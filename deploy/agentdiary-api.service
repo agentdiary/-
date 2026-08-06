@@ -1,0 +1,16 @@
+[Unit]
+Description=AgentDiary FastAPI backend
+After=network.target
+
+[Service]
+WorkingDirectory=/home/ubuntu/agentdiary/server
+Environment=AGENTDIARY_DB_PATH=/home/ubuntu/agentdiary-data/agentdiary.db
+Environment=AGENTDIARY_CORS_ORIGINS=*
+Environment=OLLAMA_URL=http://127.0.0.1:11434
+Environment=OLLAMA_MODEL=qwen3.5:9b
+ExecStart=/home/ubuntu/agentdiary/server/.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
